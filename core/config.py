@@ -1,6 +1,10 @@
 import os
 from functools import lru_cache
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 class Settings:
     """Runtime configuration pulled from the environment.
@@ -13,7 +17,7 @@ class Settings:
     def __init__(self):
         self.database_url = os.getenv(
             "DATABASE_URL",
-            "postgresql+psycopg2://finsight:finsight@localhost:5432/finsight",
+            "postgresql+psycopg2://finsight:finsight@localhost:5433/finsight",
         )
         self.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
         self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")

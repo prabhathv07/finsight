@@ -1,5 +1,7 @@
 import datetime as dt
 
+import pytest
+
 from delivery.render import render_html, subject_for
 from delivery.send import Recipient, send_briefing
 
@@ -54,6 +56,7 @@ def test_send_records_failures_without_stopping():
 
 
 def test_flow_constructs():
+    pytest.importorskip("prefect")
     from infra.flow import daily_briefing_flow
 
     assert daily_briefing_flow.name == "finsight-daily-briefing"
