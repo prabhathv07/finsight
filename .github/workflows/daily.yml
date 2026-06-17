@@ -1,0 +1,32 @@
+name: daily briefing
+
+on:
+  schedule:
+    # 14:00 UTC, weekdays. GitHub's scheduler can fire 30 to 90 minutes late
+    # on the free tier; use cron-job.org to hit the dispatch endpoint if you
+    # need the briefing to land at an exact time.
+    - cron: "0 14 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run the briefing
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          EMAIL_BACKEND: ${{ secrets.EMAIL_BACKEND }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          MAILING_ADDRESS: ${{ secrets.MAILING_ADDRESS }}
+          PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
+        run: python run_briefing.py

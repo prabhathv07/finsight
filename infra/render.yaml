@@ -1,0 +1,31 @@
+# Render blueprint. The database is not defined here on purpose: the free
+# Postgres on Render is deleted after 30 days, so point DATABASE_URL at a
+# Neon database instead and set it in the Render dashboard.
+#
+# The keys marked sync: false are secrets you enter in the dashboard, not in
+# this file. Never commit real values.
+
+services:
+  - type: web
+    name: finsight-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: EMAIL_BACKEND
+        value: resend
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: MAILING_ADDRESS
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false
