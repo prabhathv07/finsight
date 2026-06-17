@@ -48,3 +48,39 @@ def render_html(briefing, unsubscribe_url=None, mailing_address=None):
 
 def subject_for(briefing):
     return f"Pre-Market Intelligence Report - {briefing.run_date.isoformat()}"
+
+
+def confirmation_subject():
+    return "Confirm your FinSight subscription"
+
+
+def render_confirmation(confirm_url, mailing_address=None):
+    safe_url = html.escape(confirm_url)
+    footer = ""
+    if mailing_address:
+        footer = (
+            f'<p style="font-size:11px;color:#999;">{html.escape(mailing_address)}</p>'
+        )
+    return f"""<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#ffffff;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;">
+    <tr>
+      <td style="padding:24px;">
+        <h1 style="font-size:20px;margin:0 0 12px 0;">Confirm your subscription</h1>
+        <p style="font-size:14px;line-height:1.5;">
+          You asked to receive the FinSight pre-market briefing. Confirm your
+          address to start receiving it:
+        </p>
+        <p style="margin:20px 0;">
+          <a href="{safe_url}" style="background:#1a1a1a;color:#ffffff;padding:10px 18px;text-decoration:none;border-radius:4px;font-size:14px;">Confirm subscription</a>
+        </p>
+        <p style="font-size:12px;color:#666;">
+          If you did not request this, ignore this email and you will not be added.
+        </p>
+        {footer}
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""

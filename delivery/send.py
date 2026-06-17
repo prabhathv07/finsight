@@ -34,3 +34,38 @@ def send_briefing(briefing, recipients, backend, mailing_address=None):
             failed.append(recipient.email)
 
     return {"sent": sent, "failed": failed}
+
+
+def subscriber_recipients(subscribers, base_url):
+    """Map confirmed subscribers to recipients with per-person unsubscribe links."""
+    base = base_url.rstrip("/")
+    return [
+        Recipient(
+            email=sub.email,
+            unsubscribe_url=f"{base}/unsubscribe?token={sub.unsubscribe_token}",
+        )
+        for sub in subscribers
+    ]
+
+
+def deliver(session, briefing, settings, backend=None):
+    """Send a briefing to confirmed subscribers plus the configured admin list.
+
+    Shared by the Prefect flow and the one-shot runner so the recipient rules
+    live in one place.
+    """
+    from delivery import subscribers
+    from delivery.backends import backend_from_settings
+
+    if briefing is None:
+        return {"sent": [], "failed": [], "note": "no briefing to send"}
+
+    recipients = subscriber_recipients(
+        subscribers.confirmed(session), settings.public_base_url
+    )
+    recipients += [Recipient(email=addr) for addr in settings.email_to]
+    if not recipients:
+        return {"sent": [], "failed": [], "note": "no recipients"}
+
+    backend = backend or backend_from_settings(settings)
+    return send_briefing(briefing, recipients, backend, settings.mailing_address)

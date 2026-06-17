@@ -87,6 +87,28 @@ class Briefing(Base):
     error: Mapped[str] = mapped_column(Text, nullable=True)
 
 
+class Subscriber(Base):
+    """A mailing-list subscriber.
+
+    Double opt-in: a new row starts pending with a confirm token and only
+    receives briefings once status is confirmed. Every row also carries an
+    unsubscribe token so the link in each email resolves to one person.
+    """
+
+    __tablename__ = "subscribers"
+    __table_args__ = (
+        UniqueConstraint("email", name="uq_subscriber_email"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    email: Mapped[str] = mapped_column(String(320), index=True)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    confirm_token: Mapped[str] = mapped_column(String(64), index=True)
+    unsubscribe_token: Mapped[str] = mapped_column(String(64), index=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime)
+    confirmed_at: Mapped[dt.datetime] = mapped_column(DateTime, nullable=True)
+
+
 def create_all():
     from core.db import get_engine
 

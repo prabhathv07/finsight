@@ -52,22 +52,12 @@ def analyze_task(run_date):
 @task
 def deliver_task(run_date):
     from analysis.store import briefing_for
-    from delivery.backends import backend_from_settings
-    from delivery.send import Recipient, send_briefing
+    from delivery.send import deliver
 
     settings = get_settings()
-    recipients = [Recipient(email=addr) for addr in settings.email_to]
-    if not recipients:
-        return {"sent": [], "failed": [], "note": "no recipients configured"}
-
     with session_scope() as session:
         briefing = briefing_for(session, run_date)
-        if briefing is None:
-            return {"sent": [], "failed": [], "note": "no briefing to send"}
-        backend = backend_from_settings(settings)
-        return send_briefing(
-            briefing, recipients, backend, settings.mailing_address
-        )
+        return deliver(session, briefing, settings)
 
 
 @flow(name="finsight-daily-briefing")
