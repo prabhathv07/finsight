@@ -101,7 +101,7 @@ mail backends, so no network, database, or keys are needed.
 
 ## Deploying
 
-App on Render or Fly, database on Neon. Neon's free Postgres does not expire,
+See `DEPLOY.md` for the full step-by-step. In short: app on Render or Fly, database on Neon. Neon's free Postgres does not expire,
 unlike Render's, which is deleted after 30 days. `infra/render.yaml` is a
 Render blueprint; set `DATABASE_URL` to your Neon connection string and the
 rest of the secrets in the dashboard. The `Dockerfile` builds the API service
