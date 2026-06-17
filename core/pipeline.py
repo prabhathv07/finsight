@@ -1,8 +1,8 @@
-"""Daily pipeline.
+"""Daily pipeline steps.
 
-Four steps in order: pull quotes, store them, compute indicators from
-recent history, store those. Each step is a plain function so phase 3 can
-wrap them in a Prefect flow with retries without rewriting the logic.
+Split into ingest and compute so the orchestrator can retry each on its own
+and the command-line runner can call both in one shot. Both steps hit the
+network through the provider, so both are worth retrying in the flow.
 """
 
 import datetime as dt
@@ -15,25 +15,32 @@ from ingestion.daily_pull import history_for, pull
 from ingestion.store import save_quotes
 
 
-def run(session, run_date=None, provider=None):
+def ingest(session, run_date=None, provider=None):
     run_date = run_date or dt.date.today()
-
     tagged = pull(provider=provider)
-    quotes_written = save_quotes(session, run_date, tagged)
+    return save_quotes(session, run_date, tagged)
 
-    # Indicators only matter for the symbols a reader actually studies.
+
+def compute(session, run_date=None, provider=None):
+    run_date = run_date or dt.date.today()
     study_symbols = universe.WATCHLIST + universe.SECTORS
     histories = history_for(study_symbols, provider=provider)
 
-    indicators_written = 0
+    written = 0
     for symbol, prices in histories.items():
         if not prices:
             continue
         values = indicator_set(prices)
         spark = sparkline(prices[-20:])
         save_indicator(session, run_date, symbol, values, spark)
-        indicators_written += 1
+        written += 1
+    return written
 
+
+def run(session, run_date=None, provider=None):
+    run_date = run_date or dt.date.today()
+    quotes_written = ingest(session, run_date, provider)
+    indicators_written = compute(session, run_date, provider)
     return {
         "run_date": run_date,
         "quotes_written": quotes_written,

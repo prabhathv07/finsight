@@ -21,6 +21,25 @@ class Settings:
         # Optional keyed fallback provider. Empty means yfinance only.
         self.polygon_api_key = os.getenv("POLYGON_API_KEY", "")
 
+        # Email delivery. Backend is "smtp" for local Gmail or "resend" once
+        # a transactional provider key is set.
+        self.email_backend = os.getenv("EMAIL_BACKEND", "smtp")
+        self.email_user = os.getenv("EMAIL_USER", "")
+        self.email_password = os.getenv("EMAIL_PASSWORD", "")
+        self.email_from = os.getenv("EMAIL_FROM", os.getenv("EMAIL_USER", ""))
+        self.email_to = [
+            e.strip() for e in os.getenv("EMAIL_TO", "").split(",") if e.strip()
+        ]
+        self.smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+        self.smtp_port = int(os.getenv("SMTP_PORT", "465"))
+        self.resend_api_key = os.getenv("RESEND_API_KEY", "")
+
+        # Shown in the email footer to meet bulk-email requirements.
+        self.mailing_address = os.getenv("MAILING_ADDRESS", "")
+
+        # Used to build confirmation and unsubscribe links in emails.
+        self.public_base_url = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000")
+
         self.timezone = os.getenv("FINSIGHT_TZ", "America/Chicago")
 
     def has_polygon(self):
