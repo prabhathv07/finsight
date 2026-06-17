@@ -7,6 +7,7 @@ from sqlalchemy import (
     Integer,
     JSON,
     String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -59,6 +60,31 @@ class Indicator(Base):
     ma20: Mapped[float] = mapped_column(Float, nullable=True)
     ma50: Mapped[float] = mapped_column(Float, nullable=True)
     sparkline: Mapped[str] = mapped_column(String(64), nullable=True)
+
+
+class Briefing(Base):
+    """One LLM analysis run, logged in full.
+
+    Storing the exact input, the raw output, the model name, the latency,
+    and the status for every call is the monitoring story: it is how you
+    spot a model regression, a latency spike, or a run that fell back to
+    the template after the model errored.
+    """
+
+    __tablename__ = "briefings"
+    __table_args__ = (
+        UniqueConstraint("run_date", name="uq_briefing_run_date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_date: Mapped[dt.date] = mapped_column(Date, index=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime)
+    model_name: Mapped[str] = mapped_column(String(64))
+    summary_input: Mapped[str] = mapped_column(Text)
+    llm_output: Mapped[str] = mapped_column(Text)
+    latency_ms: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(16))
+    error: Mapped[str] = mapped_column(Text, nullable=True)
 
 
 def create_all():
