@@ -166,7 +166,7 @@ send, drive it from cron-job.org instead:
        https://api.github.com/repos/prabhathv07/finsight/actions/workflows/daily.yml/dispatches
 
    with header `Authorization: Bearer <your-token>`, header
-   `Accept: application/vnd.github+json`, and body `{"ref":"main"}`.
+   `Accept: application/vnd.github+json`, and body `{"ref":"master"}`.
 
 That fires the workflow on time; GitHub then runs the job.
 
