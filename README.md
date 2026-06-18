@@ -1,5 +1,7 @@
 # FinSight
 
+**Live:** https://finsight-api-7ghk.onrender.com
+
 A pre-market intelligence platform. Each weekday morning it pulls futures,
 macro, sector, and watchlist data, computes technical indicators, generates
 LLM commentary, stores everything in Postgres, and emails the briefing to
@@ -19,7 +21,7 @@ into layers that can be tested, scheduled, and deployed on their own.
 - `dashboard/` the public page and message screens
 - `delivery/` email backends, rendering, sending, and the subscriber store
 - `core/` shared config, database engine, ORM models, and the pipeline
-- `infra/` Docker Compose, the Prefect flow, deploy config, and table setup
+- `infra/` Docker Compose, deploy config, and table setup
 - `tests/` one module per layer
 
 ## Requirements
@@ -80,17 +82,10 @@ against it.
 
 ## Scheduling
 
-Two paths, pick one.
-
-The Prefect flow in `infra/flow.py` is the orchestrated path. Each step
-retries on a transient failure. Serve it on a weekday schedule:
-
-    python -m infra.flow
-
-The GitHub Actions workflow in `.github/workflows/daily.yml` is the simpler
-fallback. It runs `run_briefing.py` on a weekday cron with no orchestration
-server. GitHub's free scheduler can fire 30 to 90 minutes late; trigger the
-dispatch endpoint from cron-job.org if you need exact timing.
+The daily briefing runs as a GitHub Actions job (`.github/workflows/daily.yml`).
+It runs `run_briefing.py` on a weekday cron. GitHub's free scheduler can fire
+30 to 90 minutes late; trigger the dispatch endpoint from cron-job.org if you
+need exact timing.
 
 ## Tests
 
@@ -119,9 +114,7 @@ comfortable with those before sharing the link.
 
 ## Notes
 
-- yfinance is an unofficial client and can break without warning. A keyed
-  fallback provider slots in behind the `MarketDataProvider` interface; set
-  `POLYGON_API_KEY` to enable it once that provider is written.
-- The mover universe and watchlist in `ingestion/universe.py` are starting
-  lists. Reconcile them against the tuned lists from the original script
-  before relying on the output.
+- yfinance is an unofficial client and can break without warning. A Polygon.io
+  fallback provider is built in; set `POLYGON_API_KEY` to enable it.
+- The mover universe and watchlist live in `ingestion/universe.py` and can be
+  edited without touching any other file.

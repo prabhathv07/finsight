@@ -53,10 +53,3 @@ def test_send_records_failures_without_stopping():
     result = send_briefing(FakeBriefing(), [Recipient("a@test.com")], BrokenBackend())
     assert result["sent"] == []
     assert result["failed"] == ["a@test.com"]
-
-
-def test_flow_constructs():
-    pytest.importorskip("prefect")
-    from infra.flow import daily_briefing_flow
-
-    assert daily_briefing_flow.name == "finsight-daily-briefing"

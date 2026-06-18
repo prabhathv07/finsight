@@ -324,8 +324,10 @@ def render_page(briefing=None, subscriber_count=0, mailing_address=None):
 
     count_html = ''
     if subscriber_count > 0:
-        noun = 'subscriber' if subscriber_count == 1 else 'subscribers'
-        count_html = f'<p class="subscriber-count">↑ {subscriber_count} {noun} receive this each morning</p>'
+        if subscriber_count == 1:
+            count_html = '<p class="subscriber-count">↑ 1 subscriber receives this each morning</p>'
+        else:
+            count_html = f'<p class="subscriber-count">↑ {subscriber_count} subscribers receive this each morning</p>'
 
     footer_parts = [
         'Not financial advice. Past performance does not guarantee future results. Always do your own research.'
