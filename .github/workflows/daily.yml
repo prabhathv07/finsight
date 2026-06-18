@@ -24,9 +24,11 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           EMAIL_BACKEND: ${{ secrets.EMAIL_BACKEND }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           MAILING_ADDRESS: ${{ secrets.MAILING_ADDRESS }}
           PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
         run: python run_briefing.py
