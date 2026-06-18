@@ -27,7 +27,7 @@ class SMTPBackend:
         msg["From"] = self.sender
         msg["To"] = recipient
         msg.attach(MIMEText(body_html, "html"))
-        with smtplib.SMTP_SSL(self.host, self.port) as server:
+        with smtplib.SMTP_SSL(self.host, self.port, timeout=10) as server:
             server.login(self.user, self.password)
             server.sendmail(self.sender, recipient, msg.as_string())
 
