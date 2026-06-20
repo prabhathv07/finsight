@@ -168,10 +168,16 @@ def ask(req: AskRequest, session=Depends(get_session),
     if not question:
         raise HTTPException(status_code=422, detail="question must not be empty")
     top_k = req.top_k or get_settings().rag_top_k
-    return answer_question(session, question, embedder, answerer, top_k=top_k)
+    try:
+        return answer_question(session, question, embedder, answerer, top_k=top_k)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"embedding or answering service error: {exc}") from exc
 
 
 @app.post("/rag/reindex")
 def rag_reindex(session=Depends(get_session), embedder=Depends(get_embedder)):
     """Rebuild the chunk corpus from every stored briefing."""
-    return reindex_all(session, embedder)
+    try:
+        return reindex_all(session, embedder)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"embedding service error: {exc}") from exc
