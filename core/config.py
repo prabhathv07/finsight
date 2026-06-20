@@ -44,6 +44,13 @@ class Settings:
         # Used to build confirmation and unsubscribe links in emails.
         self.public_base_url = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000")
 
+        # Retrieval-augmented Q&A. Embeddings reuse the Gemini account; the
+        # dimension must match the chosen embedding model and the pgvector
+        # column width (text-embedding-004 -> 768).
+        self.embed_model = os.getenv("EMBED_MODEL", "text-embedding-004")
+        self.embed_dim = int(os.getenv("EMBED_DIM", "768"))
+        self.rag_top_k = int(os.getenv("RAG_TOP_K", "5"))
+
         self.timezone = os.getenv("FINSIGHT_TZ", "America/Chicago")
 
     def has_polygon(self):

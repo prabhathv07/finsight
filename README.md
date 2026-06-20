@@ -1,7 +1,7 @@
 <h1 align="center">FinSight — Pre-Market Intelligence Platform</h1>
 
 <p align="center">
-  <b>FastAPI · PostgreSQL · Gemini 2.5 Flash · Resend email · deployed on Render</b><br/>
+  <b>FastAPI · PostgreSQL + pgvector · Gemini 2.5 Flash · RAG Q&A · Resend email · deployed on Render</b><br/>
   Live at <a href="https://finsight-api-7ghk.onrender.com">finsight-api-7ghk.onrender.com</a>
   <br/><br/>
   <a href="https://github.com/prabhathv07/finsight/actions/workflows/ci.yml">
@@ -28,8 +28,9 @@ A production pre-market briefing system that runs every weekday morning. It pull
 - Ingests **~130 symbols** across 5 categories (futures, macro, sector ETFs, mover universe, watchlist) every weekday via yfinance with a Polygon.io keyed fallback
 - Computes **RSI-14, MA9/MA20/MA50, sparklines**, and top-5 gainers/losers from a 71-symbol mover universe; stores everything in Postgres (Neon)
 - Generates pre-market commentary with **Gemini 2.5 Flash** — every call logged to `briefings` with the exact prompt input, LLM output, model name, latency, and status; model errors fall back to a template so the briefing always sends
+- **Retrieval-augmented Q&A** over the briefing corpus — each briefing is chunked and embedded (`text-embedding-004`) into a **pgvector** column as it is stored; `POST /ask` embeds a question, retrieves the top-k most relevant past chunks, and answers with inline date citations
 - Delivers HTML email via **Resend** (production) or Gmail SMTP (local); double opt-in with per-address unsubscribe tokens
-- **57 tests** across 8 modules — fully offline (SQLite + deterministic fake providers, no network or API keys required)
+- **68 tests** across 9 modules — fully offline (SQLite + deterministic fake providers, no network or API keys required); the RAG layer runs on pgvector in Postgres and degrades to an in-Python cosine scan under SQLite so tests need no extension
 - Scheduled via **GitHub Actions cron** at 14:00 UTC weekdays; also triggerable via `POST /briefings/run` from the API
 
 ---
@@ -77,6 +78,8 @@ GitHub Actions cron  (14:00 UTC, Mon–Fri)
             │  POST /briefings/run         │  trigger analysis manually
             │  GET  /briefings/latest      │  latest stored briefing
             │  GET  /briefings/{date}      │  briefing by date
+            │  POST /ask                   │  RAG Q&A over past briefings
+            │  POST /rag/reindex           │  rebuild the chunk index
             └──────────────────────────────┘
 ```
 
@@ -144,7 +147,7 @@ Two backends share the same `send(subject, html, recipient)` interface:
 
 ## Test Suite
 
-57 tests across 8 modules — the entire suite runs offline:
+68 tests across 9 modules — the entire suite runs offline:
 
 | Module | What it covers |
 |---|---|
@@ -153,7 +156,8 @@ Two backends share the same `send(subject, html, recipient)` interface:
 | `test_providers.py` | yfinance and Polygon provider shapes against fake HTTP responses |
 | `test_pipeline.py` | `ingest()` and `compute()` end-to-end against SQLite + `FakeProvider` |
 | `test_analysis.py` | `build_summary()` structure, `generate_and_store()` success and error paths |
-| `test_api.py` | All 8 FastAPI routes (HTTPx test client, injected fake session) |
+| `test_api.py` | All FastAPI briefing/subscribe routes (HTTPx test client, injected fake session) |
+| `test_rag.py` | Chunking, embedding/indexing, dialect-aware retrieval ranking, `/ask` and `/rag/reindex` (deterministic fake embedder + answerer) |
 | `test_delivery.py` | Email rendering and backend send mechanics |
 | `test_subscribe.py` | Confirm link activates, bad token handled, unsubscribe link works |
 
@@ -201,7 +205,7 @@ finsight/
 │   ├── service.py             # generate_and_store() — always writes a row, falls back on error
 │   └── store.py               # save_briefing(), latest_briefing(), briefing_for()
 ├── api/
-│   └── main.py                # FastAPI app — 8 routes, injected session/commentator/backend
+│   └── main.py                # FastAPI app — 10 routes, injected session/commentator/embedder/answerer/backend
 ├── dashboard/
 │   └── page.py                # dark-theme HTML renderer, _md_to_html() Markdown converter
 ├── delivery/
@@ -214,11 +218,17 @@ finsight/
 │   ├── db.py                  # SQLAlchemy engine, session factory
 │   ├── models.py              # RawQuote, Indicator, Briefing, Subscriber ORM models
 │   └── pipeline.py            # ingest(), compute(), run() — orchestrates the daily steps
+├── rag/
+│   ├── chunk.py               # chunk_briefing() — split summary + commentary
+│   ├── embed.py               # GeminiEmbedder, cosine_similarity()
+│   ├── store.py               # index_briefing(), retrieve() — pgvector / Python cosine
+│   ├── answer.py              # GeminiAnswerer, build_context() with date labels
+│   └── service.py             # answer_question(), reindex_all()
 ├── infra/
 │   ├── docker-compose.yml     # local Postgres on port 5433
 │   ├── render.yaml            # Render blueprint (web service config)
 │   └── init_db.py             # table creation helper
-├── tests/                     # 57 tests — 8 modules, all offline
+├── tests/                     # 68 tests — 9 modules, all offline
 ├── .github/workflows/
 │   ├── ci.yml                 # pytest on every push
 │   └── daily.yml              # cron 14:00 UTC Mon–Fri → run_briefing.py
@@ -351,6 +361,47 @@ Or call `POST /briefings/run` directly from any external scheduler against the l
 | `POST` | `/briefings/run?run_date=YYYY-MM-DD` | Trigger analysis for today (or a specific date) |
 | `GET` | `/briefings/latest` | Return the most recent stored briefing as JSON |
 | `GET` | `/briefings/{run_date}` | Return the briefing for a specific date as JSON |
+| `POST` | `/ask` | Ask a question over past briefings — body `{"question": "...", "top_k": 5}`; returns an answer plus the cited source chunks |
+| `POST` | `/rag/reindex` | Rebuild the chunk/embedding index from every stored briefing |
+
+---
+
+## Retrieval-Augmented Q&A (RAG)
+
+The daily pipeline already accumulates one analysed briefing per weekday in
+Postgres, so the corpus a retrieval layer needs is already there and growing.
+This feature turns that corpus into something queryable without changing the
+existing `ingestion → features → analysis → api` flow.
+
+**Indexing (write path).** When a briefing is stored, `rag.chunk.chunk_briefing`
+splits it into chunks — the structured summary input is kept whole, and the
+commentary is broken on blank lines with very short fragments merged forward.
+Each chunk is embedded with Gemini `text-embedding-004` (768-dim) and written
+to the `briefing_chunks` table. Indexing is idempotent per briefing: re-running
+a day replaces its chunks rather than duplicating them. Embedding is
+best-effort — a failure there never sinks the briefing write, preserving the
+system's "the briefing always lands" guarantee.
+
+**Storage.** The embedding lives in a **pgvector** column with an IVFFlat cosine
+index on Postgres for fast nearest-neighbour search. Under SQLite (the test
+suite) the same column degrades to JSON via `with_variant`, and similarity is
+computed in Python — so the offline tests need no extension, no key, no network.
+
+**Querying (read path).** `POST /ask` embeds the question, retrieves the top-k
+most relevant chunks (`embedding <=> query` on Postgres, a cosine scan on
+SQLite), assembles a date-labelled context block, and asks Gemini to answer
+using only those excerpts with inline date citations like `(2026-01-06)`. The
+response returns both the answer and the source chunks it drew on, each with a
+similarity score, so every answer is traceable to the briefings behind it.
+
+```bash
+curl -X POST "$BASE_URL/ask" -H 'content-type: application/json' \
+  -d '{"question": "How have semiconductors been trending lately?"}'
+```
+
+To bootstrap the index over briefings written before RAG existed, call
+`POST /rag/reindex` once after deploy — it rebuilds the chunk/embedding
+corpus from every row already in the `briefings` table.
 
 ---
 

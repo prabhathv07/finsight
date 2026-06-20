@@ -23,7 +23,7 @@ def _fallback(run_date):
     )
 
 
-def generate_and_store(session, run_date=None, commentator=None):
+def generate_and_store(session, run_date=None, commentator=None, embedder=None):
     run_date = run_date or dt.date.today()
     summary = build_summary(session, run_date)
 
@@ -43,6 +43,19 @@ def generate_and_store(session, run_date=None, commentator=None):
         output = _fallback(run_date)
     latency_ms = int((time.perf_counter() - started) * 1000)
 
-    return save_briefing(
+    briefing = save_briefing(
         session, run_date, model_name, summary, output, latency_ms, status, error
     )
+
+    # Index the briefing for retrieval. Best-effort: an embedding failure
+    # must never sink the briefing write, which is the system's guarantee.
+    if embedder is not None:
+        from rag.store import index_briefing
+
+        try:
+            session.flush()  # assign briefing.id before chunks reference it
+            index_briefing(session, briefing, embedder)
+        except Exception:
+            pass
+
+    return briefing

@@ -8,3 +8,5 @@ uvicorn[standard]>=0.29
 python-multipart>=0.0.9
 google-genai>=0.3
 resend>=2.0
+pgvector>=0.2.5
+numpy>=1.24

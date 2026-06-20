@@ -4,17 +4,26 @@ from sqlalchemy import (
     Date,
     DateTime,
     Float,
+    ForeignKey,
     Integer,
     JSON,
     String,
     Text,
     UniqueConstraint,
 )
+from pgvector.sqlalchemy import Vector
+
+from core.config import get_settings
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
     pass
+
+
+# The embedding width is fixed at table-definition time so the pgvector column
+# and its index agree. It must match the embedding model named in settings.
+EMBED_DIM = get_settings().embed_dim
 
 
 class RawQuote(Base):
@@ -107,6 +116,40 @@ class Subscriber(Base):
     unsubscribe_token: Mapped[str] = mapped_column(String(64), index=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime)
     confirmed_at: Mapped[dt.datetime] = mapped_column(DateTime, nullable=True)
+
+
+
+class BriefingChunk(Base):
+    """A retrievable slice of one briefing, plus its embedding.
+
+    Each briefing is split into a handful of chunks (the summary input and the
+    commentary, broken on blank lines) so retrieval can surface the exact
+    passage that answers a question rather than a whole day's text. The vector
+    lives in a pgvector column on Postgres for indexed similarity search; under
+    SQLite (tests) the same column degrades to JSON and similarity is computed
+    in Python, so the suite stays offline and key-free.
+    """
+
+    __tablename__ = "briefing_chunks"
+    __table_args__ = (
+        UniqueConstraint(
+            "briefing_id", "chunk_index", name="uq_chunk_briefing_index"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    briefing_id: Mapped[int] = mapped_column(
+        ForeignKey("briefings.id", ondelete="CASCADE"), index=True
+    )
+    run_date: Mapped[dt.date] = mapped_column(Date, index=True)
+    chunk_index: Mapped[int] = mapped_column(Integer)
+    source: Mapped[str] = mapped_column(String(16))  # "summary" or "commentary"
+    content: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list] = mapped_column(
+        Vector(EMBED_DIM).with_variant(JSON, "sqlite"), nullable=True
+    )
+    embed_model: Mapped[str] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime)
 
 
 def create_all():

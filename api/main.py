@@ -9,6 +9,7 @@ import datetime as dt
 
 from fastapi import Depends, FastAPI, Form, HTTPException
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
 
 from analysis.llm import GeminiCommentator
 from analysis.service import generate_and_store
@@ -19,6 +20,9 @@ from dashboard.page import render_message, render_page
 from delivery import subscribers
 from delivery.backends import backend_from_settings
 from delivery.render import confirmation_subject, render_confirmation
+from rag.answer import GeminiAnswerer
+from rag.embed import GeminiEmbedder
+from rag.service import answer_question, reindex_all
 
 app = FastAPI(title="FinSight")
 
@@ -38,6 +42,16 @@ def get_session():
 def get_commentator():
     settings = get_settings()
     return GeminiCommentator(settings.gemini_api_key, settings.gemini_model)
+
+
+def get_embedder():
+    settings = get_settings()
+    return GeminiEmbedder(settings.gemini_api_key, settings.embed_model)
+
+
+def get_answerer():
+    settings = get_settings()
+    return GeminiAnswerer(settings.gemini_api_key, settings.gemini_model)
 
 
 def get_backend():
@@ -64,9 +78,12 @@ def health():
 
 @app.post("/briefings/run")
 def run_briefing(run_date: str | None = None, session=Depends(get_session),
-                 commentator=Depends(get_commentator)):
+                 commentator=Depends(get_commentator),
+                 embedder=Depends(get_embedder)):
     parsed = dt.date.fromisoformat(run_date) if run_date else dt.date.today()
-    briefing = generate_and_store(session, run_date=parsed, commentator=commentator)
+    briefing = generate_and_store(
+        session, run_date=parsed, commentator=commentator, embedder=embedder
+    )
     session.flush()
     return _serialize(briefing)
 
@@ -136,3 +153,25 @@ def unsubscribe(token: str, session=Depends(get_session)):
     if sub is None:
         return render_message("Link not recognized", "That unsubscribe link is not valid.")
     return render_message("You are unsubscribed", "You will not receive further briefings.")
+
+
+class AskRequest(BaseModel):
+    question: str
+    top_k: int | None = None
+
+
+@app.post("/ask")
+def ask(req: AskRequest, session=Depends(get_session),
+        embedder=Depends(get_embedder), answerer=Depends(get_answerer)):
+    """Answer a question from the indexed briefing corpus, with citations."""
+    question = req.question.strip()
+    if not question:
+        raise HTTPException(status_code=422, detail="question must not be empty")
+    top_k = req.top_k or get_settings().rag_top_k
+    return answer_question(session, question, embedder, answerer, top_k=top_k)
+
+
+@app.post("/rag/reindex")
+def rag_reindex(session=Depends(get_session), embedder=Depends(get_embedder)):
+    """Rebuild the chunk corpus from every stored briefing."""
+    return reindex_all(session, embedder)

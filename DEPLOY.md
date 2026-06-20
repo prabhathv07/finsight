@@ -11,6 +11,9 @@ Plan for about 45 minutes the first time. Everything here uses free tiers.
 
 - GitHub (you have this)
 - Neon, for Postgres: https://neon.tech
+
+> Neon and standard Postgres 16 both ship the `pgvector` extension. `infra/init_db.py` enables it automatically (`CREATE EXTENSION IF NOT EXISTS vector`) and builds the IVFFlat index before creating tables, so no manual database step is needed for the RAG `/ask` feature.
+
 - Render, for the web service: https://render.com
 - Resend, for email: https://resend.com
 
