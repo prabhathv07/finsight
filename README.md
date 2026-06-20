@@ -108,7 +108,7 @@ Watchlist symbols receive full indicator detail (RSI + all MAs + sparkline). The
 | MA9 | Simple moving average | 9 days |
 | MA20 | Simple moving average | 20 days |
 | MA50 | Simple moving average | 50 days |
-| Sparkline | Block-character trend string (▁▂▄▆█ …) | 20 days |
+| Sparkline | Block-character trend string  | 20 days |
 | Top gainers | Sorted by `change_pct` descending | 5 from mover universe |
 | Top losers | Sorted by `change_pct` ascending | 5 from mover universe |
 
