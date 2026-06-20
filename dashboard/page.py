@@ -465,6 +465,10 @@ def render_page(briefing=None, subscriber_count=0, mailing_address=None):
 
   {_commentary_block(briefing)}
 
+  <p style="font-size:11px;color:var(--text-dim);margin-bottom:24px;">
+    Not financial advice. Always do your own research. Past performance does not guarantee future results.
+  </p>
+
   <div class="signup-card">
     <h2>Get this in your inbox</h2>
     <p class="sub">One briefing every market morning — futures, macro, sectors, and AI commentary — before the open. Free. Unsubscribe any time.</p>

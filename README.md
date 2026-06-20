@@ -86,6 +86,18 @@ GitHub Actions cron  (14:00 UTC, Mon–Fri)
 
 ---
 
+## Database: SQLite locally, PostgreSQL + pgvector in production
+
+| Environment | Database | Vector search |
+|---|---|---|
+| Local / demo | SQLite (`sqlite:///./demo.db`) | Cosine computed in Python — no Docker, no extension |
+| Test suite | SQLite in-process | Same Python cosine path — zero setup, fully offline |
+| Production (Render + Neon) | PostgreSQL 16 + pgvector | `embedding <=> query` — native HNSW cosine index |
+
+The ORM model uses `with_variant` so the `Vector(768)` column silently degrades to a JSON column on SQLite. Everything works on either backend; the only difference is query speed at scale. **If you are running the quick-start below, you do not need Docker or Postgres** — set `DATABASE_URL=sqlite:///./demo.db` and skip step 2.
+
+---
+
 ## Data Coverage
 
 | Category | Symbols | Detail |
@@ -280,13 +292,23 @@ pip install -r requirements-dev.txt
 cp .env.example .env
 ```
 
-### 2. Start Postgres
+### 2. Choose your database
+
+**Quick start (SQLite — no Docker needed):**
+
+```env
+DATABASE_URL=sqlite:///./demo.db
+```
+
+Set this in `.env` and skip Docker entirely. SQLite is the right choice for a local demo or exploring the codebase. The RAG layer works on SQLite using a Python cosine fallback.
+
+**Full local stack (Postgres + pgvector):**
 
 ```bash
 docker compose -f infra/docker-compose.yml up -d
 ```
 
-This starts Postgres with the pgvector extension on `localhost:5433`. The `DATABASE_URL` in `.env.example` already points there.
+This starts Postgres with the pgvector extension on `localhost:5433`. Use `DATABASE_URL=postgresql://finsight:finsight@localhost:5433/finsight`. Required if you want to test production-identical vector indexing locally.
 
 ### 3. Configure `.env`
 
@@ -298,7 +320,10 @@ EMAIL_BACKEND=smtp
 EMAIL_USER=you@gmail.com
 EMAIL_PASSWORD=<gmail-app-password>
 EMAIL_TO=you@gmail.com
+MAILING_ADDRESS=<your physical address>   # required for CAN-SPAM compliance
 ```
+
+> **Before sharing the live URL**: replace `MAILING_ADDRESS` with a real address. The dashboard and every outbound email shows this value in the footer. `123 Demo St` is a placeholder — leave it in place and your emails may be flagged as spam.
 
 See [Environment Variables](#environment-variables) below for the full list.
 
