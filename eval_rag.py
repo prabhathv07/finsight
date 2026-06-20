@@ -19,43 +19,43 @@ import sys
 EVAL_SET = [
     {
         "question": "Which sectors were leading pre-market?",
-        "expected_dates": [],   # fill in after you have real briefings indexed
+        "expected_dates": ["2026-06-20"],   # SOXX +6.62%, XLK +3.04%, XLI +0.73%
     },
     {
         "question": "How did semiconductors perform?",
-        "expected_dates": [],
+        "expected_dates": ["2026-06-20"],   # SOXX +6.62%, AMD +4.86%, AVGO +4.70%, NVDA +2.95%
     },
     {
         "question": "What was the VIX doing?",
-        "expected_dates": [],
+        "expected_dates": ["2026-06-20"],   # VIX 16.40, flat on the day
     },
     {
         "question": "Which stocks were top gainers?",
-        "expected_dates": [],
+        "expected_dates": ["2026-06-20"],   # SNDK +11.54%, INTC +10.64%, KLAC +8.73%
     },
     {
         "question": "What were the futures saying about the open?",
-        "expected_dates": [],
+        "expected_dates": ["2026-06-20"],   # NQ +1.27%, ES +0.64%, RTY +1.18%, YM -0.14%
     },
     {
         "question": "How was NVDA trending?",
-        "expected_dates": [],
+        "expected_dates": ["2026-06-20"],   # NVDA +2.95%, RSI 49.9, MA20 211.68
     },
     {
         "question": "Was gold up or down?",
-        "expected_dates": [],
+        "expected_dates": ["2026-06-20"],   # GC=F -1.21%
     },
     {
         "question": "What were the main risks flagged?",
-        "expected_dates": [],
+        "expected_dates": ["2026-06-20"],   # concentrated tech/semis rally, energy/financials weakness
     },
     {
         "question": "How did energy stocks do?",
-        "expected_dates": [],
+        "expected_dates": ["2026-06-20"],   # XLE -1.65%, SLB -4.45%, COP -3.12%
     },
     {
         "question": "What was the RSI on MSFT?",
-        "expected_dates": [],
+        "expected_dates": ["2026-06-20"],   # MSFT RSI 18.6 (oversold), MA20 413.15
     },
 ]
 
