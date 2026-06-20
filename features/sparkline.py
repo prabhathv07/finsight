@@ -9,6 +9,7 @@ BLOCKS = "\u2581\u2582\u2583\u2584\u2585\u2586\u2587\u2588"
 
 
 def sparkline(prices):
+    prices = [p for p in prices if p is not None and p == p]  # drop None and NaN
     if not prices:
         return ""
     low = min(prices)
