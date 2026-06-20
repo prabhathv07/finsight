@@ -14,6 +14,15 @@ from rag.answer import build_context
 from rag.store import index_briefing, retrieve
 
 
+# Minimum cosine similarity for a chunk to be passed to the answerer.
+# text-embedding-004 cosine scores cluster near 0.7–0.9 for genuinely
+# relevant finance text and drop to 0.3–0.5 for unrelated content.
+# This value was chosen by inspecting the score distribution on a sample
+# of real briefing questions; raise it if hallucinations increase, lower
+# it if too many valid questions get the no-context reply.
+MIN_RETRIEVAL_SCORE = 0.55
+
+
 def _no_context_answer(question):
     return (
         "There are no indexed briefings to answer from yet. Once briefings "
@@ -21,13 +30,28 @@ def _no_context_answer(question):
     )
 
 
-def answer_question(session, question, embedder, answerer, top_k=5):
+def _weak_context_answer(question):
+    return (
+        "No past briefings are closely related to that question. "
+        "Try rephrasing, or the answer may not be in the indexed corpus."
+    )
+
+
+def answer_question(session, question, embedder, answerer, top_k=5,
+                    min_score=MIN_RETRIEVAL_SCORE):
     """Return {answer, sources} for a question over the briefing corpus."""
     query_vec = embedder([question])[0]
     results = retrieve(session, query_vec, top_k=top_k)
 
     if not results:
         return {"question": question, "answer": _no_context_answer(question), "sources": []}
+
+    # Filter out chunks below the similarity threshold before sending to the
+    # answerer. This is the belt: the prompt instruction is the suspenders —
+    # both are needed because they catch different failure modes.
+    results = [(chunk, score) for chunk, score in results if score >= min_score]
+    if not results:
+        return {"question": question, "answer": _weak_context_answer(question), "sources": []}
 
     context = build_context(results)
     answer = answerer(question, context)
