@@ -142,7 +142,7 @@ def test_answer_question_returns_sources(session):
     index_briefing(session, b, FakeEmbedder())
     session.commit()
 
-    out = answer_question(session, "How did semiconductors do?", FakeEmbedder(), FakeAnswerer(), top_k=3)
+    out = answer_question(session, "How did semiconductors do?", FakeEmbedder(), FakeAnswerer(), top_k=3, min_score=0.0)
     assert out["sources"]
     assert out["sources"][0]["run_date"] == "2026-01-06"
     assert "Based on the briefings" in out["answer"]
@@ -179,7 +179,8 @@ def client(tmp_path):
     app.dependency_overrides.clear()
 
 
-def test_run_indexes_then_ask(client):
+def test_run_indexes_then_ask(client, monkeypatch):
+    monkeypatch.setattr("rag.service.MIN_RETRIEVAL_SCORE", 0.0)
     run_date = "2026-01-06"
     # Seed market data so the summary has content to embed.
     from core.pipeline import run

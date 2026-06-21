@@ -37,9 +37,10 @@ def _weak_context_answer(question):
     )
 
 
-def answer_question(session, question, embedder, answerer, top_k=5,
-                    min_score=MIN_RETRIEVAL_SCORE):
+def answer_question(session, question, embedder, answerer, top_k=5, min_score=None):
     """Return {answer, sources} for a question over the briefing corpus."""
+    if min_score is None:
+        min_score = MIN_RETRIEVAL_SCORE
     query_vec = embedder([question])[0]
     results = retrieve(session, query_vec, top_k=top_k)
 
