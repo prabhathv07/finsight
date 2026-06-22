@@ -718,7 +718,7 @@
       <div class="cta-card reveal">
         <h2 id="cta-heading">Start your morning<br />with an edge</h2>
         <p>Free weekday briefings. No credit card. Unsubscribe any time with a single click.</p>
-        <form class="subscribe-form" onsubmit="handleSubscribe(event)" aria-label="Subscribe to FinSight briefings">
+        <form class="subscribe-form" action="https://finsight-api-7ghk.onrender.com/subscribe" method="post" aria-label="Subscribe to FinSight briefings">
           <label for="email-input" class="sr-only">Email address</label>
           <input type="email" id="email-input" name="email" placeholder="you@example.com" required autocomplete="email" />
           <button type="submit" class="btn btn-primary">Subscribe</button>
@@ -750,39 +750,6 @@
     );
     document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
 
-    // Subscribe handler (hooks into existing API)
-    function handleSubscribe(e) {
-      e.preventDefault();
-      const input = document.getElementById('email-input');
-      const btn = e.target.querySelector('button');
-      btn.textContent = 'Sending…';
-      btn.disabled = true;
-
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 20000);
-      btn.textContent = 'Subscribing…';
-
-      const body = new URLSearchParams({ email: input.value });
-      fetch('https://finsight-api-7ghk.onrender.com/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: body.toString(),
-        signal: controller.signal
-      })
-        .then(r => { clearTimeout(timer); return r.ok ? r.text() : Promise.reject(r); })
-        .then(() => {
-          btn.textContent = 'Check your email ✓';
-          btn.style.background = 'var(--profit)';
-          input.value = '';
-        })
-        .catch(err => {
-          clearTimeout(timer);
-          btn.textContent = err?.name === 'AbortError' ? 'Timed out — try again' : 'Try again';
-          btn.disabled = false;
-          btn.style.background = 'var(--loss)';
-          setTimeout(() => { btn.textContent = 'Subscribe'; btn.style.background = ''; btn.disabled = false; }, 4000);
-        });
-    }
   </script>
 </body>
 </html>
