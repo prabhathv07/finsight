@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FinSight — Pre-Market Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Design tokens ───────────────────────────────────────── */
+    :root {
+      --bg:          #0F172A;
+      --bg-elevated: #151F33;
+      --muted:       #1E2A42;
+      --border:      #334155;
+      --fg:          #F8FAFC;
+      --fg-muted:    #94A3B8;
+      --primary:     #F59E0B;
+      --primary-dim: rgba(245,158,11,.15);
+      --accent:      #8B5CF6;
+      --accent-dim:  rgba(139,92,246,.15);
+      --profit:      #22C55E;
+      --loss:        #EF4444;
+      --radius:      12px;
+      --ease:        cubic-bezier(.16,1,.3,1);
+    }
+
+    /* ── Reset ───────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    a { color: inherit; text-decoration: none; }
+    img, svg { display: block; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+
+    /* ── Ambient blobs ───────────────────────────────────────── */
+    .blob {
+      position: fixed; border-radius: 50%; filter: blur(80px);
+      pointer-events: none; z-index: 0; opacity: .08;
+      animation: drift 18s ease-in-out infinite alternate;
+    }
+    .blob-1 { width: 600px; height: 600px; background: var(--primary); top: -200px; left: -150px; animation-delay: 0s; }
+    .blob-2 { width: 500px; height: 500px; background: var(--accent);  top: 40vh;  right: -180px; animation-delay: -6s; }
+    .blob-3 { width: 400px; height: 400px; background: var(--primary); bottom: 0;  left: 30%;    animation-delay: -12s; }
+    @keyframes drift {
+      from { transform: translate(0, 0) scale(1); }
+      to   { transform: translate(30px, -40px) scale(1.08); }
+    }
+
+    /* ── Layout ──────────────────────────────────────────────── */
+    .container { max-width: 1140px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+    section { padding: 96px 0; }
+
+    /* ── Nav ─────────────────────────────────────────────────── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      border-bottom: 1px solid rgba(51,65,85,.6);
+      background: rgba(15,23,42,.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px;
+    }
+    .logo {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 1.125rem; font-weight: 700; letter-spacing: -.01em;
+    }
+    .logo-icon {
+      width: 32px; height: 32px; background: var(--primary-dim);
+      border-radius: 8px; border: 1px solid rgba(245,158,11,.3);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .logo span { color: var(--primary); }
+    .nav-links { display: flex; align-items: center; gap: 32px; }
+    .nav-links a {
+      font-size: .875rem; color: var(--fg-muted);
+      transition: color .2s var(--ease);
+    }
+    .nav-links a:hover { color: var(--fg); }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 20px; border-radius: var(--radius);
+      font-family: inherit; font-size: .875rem; font-weight: 600;
+      cursor: pointer; border: none;
+      transition: all .2s var(--ease);
+    }
+    .btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+    .btn-primary {
+      background: var(--primary); color: #0F172A;
+    }
+    .btn-primary:hover { background: #FBBF24; transform: translateY(-1px); box-shadow: 0 0 20px rgba(245,158,11,.35); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-ghost {
+      background: transparent; color: var(--fg-muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { color: var(--fg); border-color: var(--fg-muted); }
+    @media (max-width: 640px) { .nav-links { display: none; } }
+
+    /* ── Hero ────────────────────────────────────────────────── */
+    .hero { padding: 120px 0 96px; text-align: center; }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 14px; border-radius: 999px;
+      border: 1px solid rgba(245,158,11,.3);
+      background: var(--primary-dim);
+      font-size: .75rem; font-weight: 600; color: var(--primary);
+      margin-bottom: 28px; letter-spacing: .04em; text-transform: uppercase;
+    }
+    .hero h1 {
+      font-size: clamp(2.5rem, 6vw, 4rem);
+      font-weight: 700; line-height: 1.1;
+      letter-spacing: -.03em;
+      margin-bottom: 20px;
+    }
+    .hero h1 em {
+      font-style: normal; color: var(--primary);
+      text-shadow: 0 0 40px rgba(245,158,11,.4);
+    }
+    .hero-sub {
+      font-size: clamp(1rem, 2vw, 1.25rem);
+      color: var(--fg-muted); max-width: 560px; margin: 0 auto 40px;
+      line-height: 1.7;
+    }
+    .hero-actions { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+    .hero-actions .btn { padding: 14px 28px; font-size: 1rem; }
+
+    /* ── Terminal preview ────────────────────────────────────── */
+    .terminal-wrap {
+      margin-top: 72px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 24px 80px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.04);
+    }
+    .terminal-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,.02);
+    }
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-r { background: #EF4444; }
+    .dot-y { background: #F59E0B; }
+    .dot-g { background: #22C55E; }
+    .terminal-title {
+      margin-left: 8px; font-size: .75rem; color: var(--fg-muted);
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .terminal-body { padding: 24px; font-family: 'IBM Plex Mono', monospace; font-size: .8125rem; line-height: 1.8; }
+    .t-dim    { color: var(--fg-muted); }
+    .t-gold   { color: var(--primary); }
+    .t-green  { color: var(--profit); }
+    .t-red    { color: var(--loss); }
+    .t-violet { color: #A78BFA; }
+    .t-white  { color: var(--fg); font-weight: 500; }
+    .terminal-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px; margin-top: 16px;
+    }
+    .t-card {
+      background: rgba(255,255,255,.03); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px;
+    }
+    .t-card-label { font-size: .6875rem; color: var(--fg-muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; }
+    .t-card-value { font-size: 1.5rem; font-weight: 700; font-family: 'IBM Plex Mono', monospace; }
+    .t-card-sub { font-size: .6875rem; color: var(--fg-muted); margin-top: 4px; }
+    .sparkline { display: flex; align-items: flex-end; gap: 3px; height: 32px; margin-top: 8px; }
+    .spark-bar { flex: 1; border-radius: 2px; background: var(--profit); opacity: .7; transition: opacity .2s; }
+    .spark-bar:hover { opacity: 1; }
+
+    /* ── Stats strip ─────────────────────────────────────────── */
+    .stats { padding: 48px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 32px; }
+    .stat { text-align: center; }
+    .stat-value { font-size: 2.25rem; font-weight: 700; color: var(--primary); letter-spacing: -.03em; line-height: 1; }
+    .stat-label { font-size: .875rem; color: var(--fg-muted); margin-top: 6px; }
+
+    /* ── Problem ─────────────────────────────────────────────── */
+    .section-tag {
+      display: inline-block; font-size: .75rem; font-weight: 600;
+      letter-spacing: .08em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: clamp(1.75rem, 4vw, 2.75rem);
+      font-weight: 700; letter-spacing: -.02em; line-height: 1.2;
+      margin-bottom: 16px;
+    }
+    .section-sub { font-size: 1.0625rem; color: var(--fg-muted); max-width: 520px; line-height: 1.7; }
+    .problem-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 56px; }
+    .problem-card {
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 28px;
+      transition: border-color .25s var(--ease), transform .25s var(--ease);
+    }
+    .problem-card:hover { border-color: rgba(139,92,246,.4); transform: translateY(-3px); }
+    .problem-icon {
+      width: 44px; height: 44px; border-radius: 10px;
+      background: var(--accent-dim); border: 1px solid rgba(139,92,246,.2);
+      display: flex; align-items: center; justify-content: center; margin-bottom: 16px;
+    }
+    .problem-card h3 { font-size: 1rem; font-weight: 600; margin-bottom: 8px; }
+    .problem-card p  { font-size: .875rem; color: var(--fg-muted); line-height: 1.65; }
+
+    /* ── Features ────────────────────────────────────────────── */
+    .features-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+    @media (max-width: 768px) { .features-layout { grid-template-columns: 1fr; } }
+    .feature-list { display: flex; flex-direction: column; gap: 28px; }
+    .feature-item { display: flex; gap: 16px; }
+    .feature-icon {
+      flex-shrink: 0; width: 40px; height: 40px; border-radius: 10px;
+      background: var(--primary-dim); border: 1px solid rgba(245,158,11,.25);
+      display: flex; align-items: center; justify-content: center; margin-top: 2px;
+    }
+    .feature-item h3 { font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
+    .feature-item p  { font-size: .875rem; color: var(--fg-muted); line-height: 1.65; }
+    .feature-visual {
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.4);
+    }
+    .symbol-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 0; border-bottom: 1px solid rgba(51,65,85,.5);
+    }
+    .symbol-row:last-child { border-bottom: none; }
+    .symbol-name { font-family: 'IBM Plex Mono', monospace; font-size: .875rem; font-weight: 500; }
+    .symbol-rsi  { font-size: .75rem; color: var(--fg-muted); margin-top: 2px; }
+    .symbol-change { font-family: 'IBM Plex Mono', monospace; font-size: .875rem; font-weight: 600; }
+    .up   { color: var(--profit); }
+    .down { color: var(--loss);   }
+
+    /* ── How it works ────────────────────────────────────────── */
+    .steps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0; margin-top: 56px; position: relative; }
+    .steps-grid::before {
+      content: ''; position: absolute; top: 28px; left: 10%; right: 10%; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), var(--border), transparent);
+    }
+    @media (max-width: 640px) { .steps-grid::before { display: none; } }
+    .step { text-align: center; padding: 0 24px; }
+    .step-num {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--muted); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 20px; font-family: 'IBM Plex Mono', monospace;
+      font-size: .875rem; font-weight: 600; color: var(--primary);
+      position: relative; z-index: 1;
+    }
+    .step h3 { font-size: .9375rem; font-weight: 600; margin-bottom: 8px; }
+    .step p   { font-size: .8125rem; color: var(--fg-muted); line-height: 1.65; }
+
+    /* ── Q&A section ─────────────────────────────────────────── */
+    .qa-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+    @media (max-width: 768px) { .qa-layout { grid-template-columns: 1fr; } }
+    .qa-card {
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 16px; overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,.4);
+    }
+    .qa-header {
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+      font-size: .75rem; color: var(--fg-muted); font-family: 'IBM Plex Mono', monospace;
+    }
+    .qa-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+    .qa-q, .qa-a { border-radius: 10px; padding: 12px 14px; font-size: .8125rem; line-height: 1.6; max-width: 85%; }
+    .qa-q { background: var(--accent-dim); border: 1px solid rgba(139,92,246,.25); align-self: flex-end; color: var(--fg); }
+    .qa-a { background: rgba(255,255,255,.04); border: 1px solid var(--border); align-self: flex-start; color: var(--fg-muted); }
+    .qa-a strong { color: var(--fg); }
+    .qa-a .cite { color: var(--primary); font-size: .6875rem; font-family: 'IBM Plex Mono', monospace; }
+
+    /* ── CTA ─────────────────────────────────────────────────── */
+    .cta-section { text-align: center; }
+    .cta-card {
+      background: var(--bg-elevated); border: 1px solid var(--border);
+      border-radius: 20px; padding: 72px 48px;
+      position: relative; overflow: hidden;
+    }
+    .cta-card::before {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(245,158,11,.07), transparent);
+      pointer-events: none;
+    }
+    .cta-card h2 {
+      font-size: clamp(1.75rem, 4vw, 2.5rem);
+      font-weight: 700; letter-spacing: -.02em; margin-bottom: 16px;
+    }
+    .cta-card p { font-size: 1.0625rem; color: var(--fg-muted); max-width: 480px; margin: 0 auto 36px; line-height: 1.7; }
+    .subscribe-form {
+      display: flex; gap: 10px; max-width: 420px; margin: 0 auto;
+    }
+    .subscribe-form input {
+      flex: 1; padding: 12px 16px; border-radius: var(--radius);
+      background: rgba(255,255,255,.06); border: 1px solid var(--border);
+      color: var(--fg); font-family: inherit; font-size: .875rem;
+      transition: border-color .2s;
+    }
+    .subscribe-form input::placeholder { color: var(--fg-muted); }
+    .subscribe-form input:focus { outline: none; border-color: var(--primary); }
+    .cta-note { font-size: .75rem; color: var(--fg-muted); margin-top: 14px; }
+    @media (max-width: 480px) {
+      .subscribe-form { flex-direction: column; }
+      .cta-card { padding: 48px 24px; }
+    }
+
+    /* ── Footer ──────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border); padding: 36px 0;
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+    }
+    .footer-links { display: flex; gap: 24px; }
+    .footer-links a { font-size: .8125rem; color: var(--fg-muted); transition: color .2s; }
+    .footer-links a:hover { color: var(--fg); }
+    .footer-copy { font-size: .75rem; color: var(--fg-muted); }
+
+    /* ── Scroll reveal ───────────────────────────────────────── */
+    .reveal { opacity: 0; transform: translateY(24px); transition: opacity .55s var(--ease), transform .55s var(--ease); }
+    .reveal.visible { opacity: 1; transform: none; }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient blobs -->
+  <div class="blob blob-1" aria-hidden="true"></div>
+  <div class="blob blob-2" aria-hidden="true"></div>
+  <div class="blob blob-3" aria-hidden="true"></div>
+
+  <!-- ── Nav ── -->
+  <nav aria-label="Main navigation">
+    <div class="container nav-inner">
+      <a href="#" class="logo">
+        <div class="logo-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M2 12 L5 8 L8 10 L11 5 L14 7" stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        Fin<span>Sight</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#how-it-works">How it works</a>
+        <a href="#qa">Q&amp;A</a>
+        <a href="https://github.com/prabhathv07/finsight" target="_blank" rel="noopener">GitHub</a>
+      </div>
+      <a href="#subscribe" class="btn btn-primary">Subscribe free</a>
+    </div>
+  </nav>
+
+  <!-- ── Hero ── -->
+  <section class="hero" aria-labelledby="hero-heading">
+    <div class="container">
+      <div class="hero-badge reveal">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <circle cx="6" cy="6" r="5" stroke="#F59E0B" stroke-width="1.2"/>
+          <path d="M6 3v3l2 1" stroke="#F59E0B" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        Weekday mornings · Before the bell
+      </div>
+      <h1 id="hero-heading" class="reveal" style="transition-delay:.05s">
+        Your edge <em>before</em><br />the market opens
+      </h1>
+      <p class="hero-sub reveal" style="transition-delay:.1s">
+        AI-powered pre-market briefings across 130+ symbols — futures, macro indicators,
+        sector ETFs — delivered to your inbox every weekday morning.
+      </p>
+      <div class="hero-actions reveal" style="transition-delay:.15s">
+        <a href="#subscribe" class="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M2 4l6 5 6-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <rect x="1" y="3" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+          Get daily briefings
+        </a>
+        <a href="https://github.com/prabhathv07/finsight" target="_blank" rel="noopener" class="btn btn-ghost">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          View source
+        </a>
+      </div>
+
+      <!-- Terminal preview -->
+      <div class="terminal-wrap reveal" style="transition-delay:.2s">
+        <div class="terminal-bar">
+          <div class="dot dot-r"></div>
+          <div class="dot dot-y"></div>
+          <div class="dot dot-g"></div>
+          <span class="terminal-title">finsight — pre-market briefing · 2026-06-22 09:14 UTC</span>
+        </div>
+        <div class="terminal-body">
+          <div><span class="t-dim">$</span> <span class="t-white">python run_briefing.py</span></div>
+          <div><span class="t-dim">→ ingesting 130 symbols across 5 categories…</span></div>
+          <div><span class="t-dim">→ computing RSI-14, MA9/MA20/MA50, sparklines…</span></div>
+          <div><span class="t-dim">→ calling Gemini 2.5 Flash for commentary…</span></div>
+          <div><span class="t-gold">✓ briefing generated in 3.2s · delivering to 842 subscribers</span></div>
+          <div class="terminal-grid">
+            <div class="t-card">
+              <div class="t-card-label">Top gainer</div>
+              <div class="t-card-value t-green">+4.7%</div>
+              <div class="t-card-sub">NVDA · RSI 71.2 · above MA20</div>
+              <div class="sparkline" aria-hidden="true">
+                <div class="spark-bar" style="height:40%"></div>
+                <div class="spark-bar" style="height:55%"></div>
+                <div class="spark-bar" style="height:45%"></div>
+                <div class="spark-bar" style="height:65%"></div>
+                <div class="spark-bar" style="height:60%"></div>
+                <div class="spark-bar" style="height:80%"></div>
+                <div class="spark-bar" style="height:75%"></div>
+                <div class="spark-bar" style="height:100%"></div>
+              </div>
+            </div>
+            <div class="t-card">
+              <div class="t-card-label">Macro signal</div>
+              <div class="t-card-value t-violet" style="font-size:1.1rem;line-height:1.4">10Y yield<br/>4.31%</div>
+              <div class="t-card-sub">+3bps · ES futures +0.4%</div>
+            </div>
+            <div class="t-card">
+              <div class="t-card-label">Top loser</div>
+              <div class="t-card-value t-red">−2.1%</div>
+              <div class="t-card-sub">INTC · RSI 38.4 · below MA50</div>
+              <div class="sparkline" aria-hidden="true">
+                <div class="spark-bar" style="height:90%;background:var(--loss)"></div>
+                <div class="spark-bar" style="height:70%;background:var(--loss)"></div>
+                <div class="spark-bar" style="height:80%;background:var(--loss)"></div>
+                <div class="spark-bar" style="height:55%;background:var(--loss)"></div>
+                <div class="spark-bar" style="height:50%;background:var(--loss)"></div>
+                <div class="spark-bar" style="height:40%;background:var(--loss)"></div>
+                <div class="spark-bar" style="height:30%;background:var(--loss)"></div>
+                <div class="spark-bar" style="height:20%;background:var(--loss)"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Stats ── -->
+  <div class="stats">
+    <div class="container">
+      <div class="stats-grid">
+        <div class="stat reveal">
+          <div class="stat-value">130+</div>
+          <div class="stat-label">Symbols tracked daily</div>
+        </div>
+        <div class="stat reveal" style="transition-delay:.05s">
+          <div class="stat-value">5</div>
+          <div class="stat-label">Market categories</div>
+        </div>
+        <div class="stat reveal" style="transition-delay:.1s">
+          <div class="stat-value">68</div>
+          <div class="stat-label">Tests passing</div>
+        </div>
+        <div class="stat reveal" style="transition-delay:.15s">
+          <div class="stat-value">RAG</div>
+          <div class="stat-label">Query briefing history</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Problem ── -->
+  <section aria-labelledby="problem-heading">
+    <div class="container">
+      <div class="reveal">
+        <div class="section-tag">The problem</div>
+        <h2 class="section-title" id="problem-heading">Markets don't wait<br />for you to catch up</h2>
+        <p class="section-sub">Pre-market moves set the tone for the entire session. Most traders and analysts miss the signal in the noise.</p>
+      </div>
+      <div class="problem-grid">
+        <div class="problem-card reveal" style="transition-delay:.05s">
+          <div class="problem-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M10 3v7l4 4" stroke="#8B5CF6" stroke-width="1.5" stroke-linecap="round"/>
+              <circle cx="10" cy="10" r="8" stroke="#8B5CF6" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <h3>No time before the open</h3>
+          <p>Markets open at 9:30 AM. Synthesizing overnight futures, macro data, and individual symbols in time is near-impossible manually.</p>
+        </div>
+        <div class="problem-card reveal" style="transition-delay:.1s">
+          <div class="problem-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M4 4h12v12H4z" stroke="#8B5CF6" stroke-width="1.5" stroke-linejoin="round"/>
+              <path d="M8 8h4M8 11h2" stroke="#8B5CF6" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h3>Signal buried in data</h3>
+          <p>130 symbols, RSI readings, moving averages, sector rotation — the data exists but extracting actionable signal takes expert judgment.</p>
+        </div>
+        <div class="problem-card reveal" style="transition-delay:.15s">
+          <div class="problem-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="7" stroke="#8B5CF6" stroke-width="1.5"/>
+              <path d="M10 7v3.5l2.5 1.5" stroke="#8B5CF6" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h3>History you can't search</h3>
+          <p>Previous briefings hold context that shapes today's moves. Without a way to query that history, you start from zero every morning.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Features ── -->
+  <section id="features" aria-labelledby="features-heading">
+    <div class="container">
+      <div class="features-layout">
+        <div>
+          <div class="reveal">
+            <div class="section-tag">Features</div>
+            <h2 class="section-title" id="features-heading">Everything you need,<br />before the bell</h2>
+          </div>
+          <div class="feature-list">
+            <div class="feature-item reveal" style="transition-delay:.05s">
+              <div class="feature-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <path d="M2 13 L5 9 L8 11 L11 6 L16 8" stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div>
+                <h3>Technical indicators at scale</h3>
+                <p>RSI-14, 9/20/50-day moving averages, and 20-day sparklines computed for every watchlist symbol. Top-5 gainers and losers from a 71-symbol universe, automatically surfaced.</p>
+              </div>
+            </div>
+            <div class="feature-item reveal" style="transition-delay:.1s">
+              <div class="feature-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <path d="M9 2a7 7 0 100 14A7 7 0 009 2z" stroke="#F59E0B" stroke-width="1.5"/>
+                  <path d="M6.5 9c.5 1.5 4 1.5 5 0" stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round"/>
+                  <circle cx="6.5" cy="7" r=".75" fill="#F59E0B"/>
+                  <circle cx="11.5" cy="7" r=".75" fill="#F59E0B"/>
+                </svg>
+              </div>
+              <div>
+                <h3>Gemini 2.5 Flash commentary</h3>
+                <p>Every briefing is narrated by Gemini 2.5 Flash with a structured prompt, logged with latency and status. If the model call fails, a template briefing ships anyway — no missed mornings.</p>
+              </div>
+            </div>
+            <div class="feature-item reveal" style="transition-delay:.15s">
+              <div class="feature-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <circle cx="9" cy="9" r="7" stroke="#F59E0B" stroke-width="1.5"/>
+                  <path d="M5 9h8M9 5l4 4-4 4" stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+              <div>
+                <h3>Polygon.io fallback ingestion</h3>
+                <p>Primary data via yfinance with automatic fallback to Polygon.io for equities. Covers futures, macro indicators, sector ETFs, and your custom watchlist — 130 symbols without gaps.</p>
+              </div>
+            </div>
+            <div class="feature-item reveal" style="transition-delay:.2s">
+              <div class="feature-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <path d="M2 5l7 5 7-5" stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round"/>
+                  <rect x="1.5" y="4" width="15" height="10" rx="2" stroke="#F59E0B" stroke-width="1.5"/>
+                </svg>
+              </div>
+              <div>
+                <h3>Double opt-in email delivery</h3>
+                <p>HTML briefing delivered via Resend (production) with double opt-in confirmation and per-address unsubscribe tokens baked in. GDPR-safe from day one.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live market preview -->
+        <div class="feature-visual reveal" style="transition-delay:.1s" aria-label="Sample market data preview">
+          <div style="font-size:.6875rem;color:var(--fg-muted);font-family:'IBM Plex Mono',monospace;margin-bottom:16px;text-transform:uppercase;letter-spacing:.08em">
+            Top movers · pre-market
+          </div>
+          <div class="symbol-row">
+            <div>
+              <div class="symbol-name">NVDA</div>
+              <div class="symbol-rsi">RSI 71.2 · above MA20 &amp; MA50</div>
+            </div>
+            <div class="symbol-change up">+4.73%</div>
+          </div>
+          <div class="symbol-row">
+            <div>
+              <div class="symbol-name">META</div>
+              <div class="symbol-rsi">RSI 62.4 · above MA9</div>
+            </div>
+            <div class="symbol-change up">+2.15%</div>
+          </div>
+          <div class="symbol-row">
+            <div>
+              <div class="symbol-name">SPY</div>
+              <div class="symbol-rsi">RSI 54.8 · neutral</div>
+            </div>
+            <div class="symbol-change up">+0.38%</div>
+          </div>
+          <div class="symbol-row">
+            <div>
+              <div class="symbol-name">INTC</div>
+              <div class="symbol-rsi">RSI 38.4 · below MA50</div>
+            </div>
+            <div class="symbol-change down">−2.09%</div>
+          </div>
+          <div class="symbol-row">
+            <div>
+              <div class="symbol-name">XLE</div>
+              <div class="symbol-rsi">RSI 33.1 · approaching oversold</div>
+            </div>
+            <div class="symbol-change down">−1.82%</div>
+          </div>
+          <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+            <div style="font-size:.6875rem;color:var(--fg-muted);font-family:'IBM Plex Mono',monospace;margin-bottom:10px">AI COMMENTARY</div>
+            <p style="font-size:.8125rem;color:var(--fg-muted);line-height:1.6">
+              <strong style="color:var(--fg)">Pre-market tone is cautiously bullish.</strong> NVDA leads on continued AI infrastructure demand. 10Y yield at 4.31% (+3bps) keeps rate-sensitive sectors under pressure. Watch ES futures at 5,482 for opening direction…
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── How it works ── -->
+  <section id="how-it-works" style="background:var(--bg-elevated);border-top:1px solid var(--border);border-bottom:1px solid var(--border)" aria-labelledby="hiw-heading">
+    <div class="container">
+      <div style="text-align:center" class="reveal">
+        <div class="section-tag">How it works</div>
+        <h2 class="section-title" id="hiw-heading">Fully automated, every weekday</h2>
+        <p class="section-sub" style="margin:0 auto">GitHub Actions triggers at 14:00 UTC. By the time US markets open, your briefing is already in your inbox.</p>
+      </div>
+      <div class="steps-grid">
+        <div class="step reveal" style="transition-delay:.05s">
+          <div class="step-num">01</div>
+          <h3>Ingest</h3>
+          <p>130 symbols pulled across futures, macro, sector ETFs, and watchlist via yfinance + Polygon.io fallback.</p>
+        </div>
+        <div class="step reveal" style="transition-delay:.1s">
+          <div class="step-num">02</div>
+          <h3>Compute</h3>
+          <p>RSI-14, MA9/MA20/MA50, sparklines. Top-5 gainers and losers ranked from 71-symbol mover universe.</p>
+        </div>
+        <div class="step reveal" style="transition-delay:.15s">
+          <div class="step-num">03</div>
+          <h3>Narrate</h3>
+          <p>Structured summary fed to Gemini 2.5 Flash. Every call logged with prompt, output, latency, and status.</p>
+        </div>
+        <div class="step reveal" style="transition-delay:.2s">
+          <div class="step-num">04</div>
+          <h3>Deliver</h3>
+          <p>HTML briefing sent via Resend. Embedded into pgvector for full-history RAG Q&amp;A queries.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Q&A ── -->
+  <section id="qa" aria-labelledby="qa-heading">
+    <div class="container">
+      <div class="qa-layout">
+        <div class="reveal">
+          <div class="section-tag">RAG Q&amp;A</div>
+          <h2 class="section-title" id="qa-heading">Ask anything about<br />your briefing history</h2>
+          <p class="section-sub">Every briefing is chunked, embedded with <code style="font-family:'IBM Plex Mono',monospace;font-size:.875rem;background:var(--muted);padding:2px 6px;border-radius:4px">text-embedding-004</code>, and stored in pgvector. Ask plain-English questions and get answers with inline date citations.</p>
+          <div style="margin-top:32px;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:10px;font-size:.875rem;color:var(--fg-muted)">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 3v4l3 1.5" stroke="#22C55E" stroke-width="1.2" stroke-linecap="round"/>
+              </svg>
+              Semantic search over full history
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:.875rem;color:var(--fg-muted)">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 3v4l3 1.5" stroke="#22C55E" stroke-width="1.2" stroke-linecap="round"/>
+              </svg>
+              Inline date citations in every answer
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:.875rem;color:var(--fg-muted)">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 3v4l3 1.5" stroke="#22C55E" stroke-width="1.2" stroke-linecap="round"/>
+              </svg>
+              POST /ask — simple REST endpoint
+            </div>
+          </div>
+        </div>
+        <div class="qa-card reveal" style="transition-delay:.1s" aria-label="Example Q&A interaction">
+          <div class="qa-header">POST /ask · pgvector semantic search</div>
+          <div class="qa-body">
+            <div class="qa-q" role="note">"What did FinSight say about NVDA in the last 30 days?"</div>
+            <div class="qa-a">
+              <strong>Across 22 briefings</strong>, NVDA appeared in top-gainers 14 times.
+              RSI averaged 68.3 — consistently above 70 from Jun 4–11 signalling overbought conditions.
+              <br/><br/>
+              Commentary on <span class="cite">[2026-06-10]</span> noted: "NVDA holding above MA20 on elevated volume; AI infrastructure narrative intact."
+              RSI pulled back to 61 by <span class="cite">[2026-06-18]</span> before recovering.
+            </div>
+            <div class="qa-q" role="note">"When did the 10Y yield cross 4.5%?"</div>
+            <div class="qa-a">
+              The 10-year yield crossed 4.5% on <span class="cite">[2026-05-28]</span>.
+              FinSight flagged rate-sensitive sector pressure (XLU −1.8%, XLRE −2.1%) in that morning's briefing.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA ── -->
+  <section id="subscribe" class="cta-section" aria-labelledby="cta-heading">
+    <div class="container">
+      <div class="cta-card reveal">
+        <h2 id="cta-heading">Start your morning<br />with an edge</h2>
+        <p>Free weekday briefings. No credit card. Unsubscribe any time with a single click.</p>
+        <form class="subscribe-form" onsubmit="handleSubscribe(event)" aria-label="Subscribe to FinSight briefings">
+          <label for="email-input" class="sr-only">Email address</label>
+          <input type="email" id="email-input" name="email" placeholder="you@example.com" required autocomplete="email" />
+          <button type="submit" class="btn btn-primary">Subscribe</button>
+        </form>
+        <p class="cta-note">Double opt-in confirmation email will be sent. Powered by Resend.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Footer ── -->
+  <footer>
+    <div class="logo" style="font-size:1rem">Fin<span style="color:var(--primary)">Sight</span></div>
+    <nav class="footer-links" aria-label="Footer navigation">
+      <a href="https://github.com/prabhathv07/finsight" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://finsight-api-7ghk.onrender.com" target="_blank" rel="noopener">API</a>
+      <a href="mailto:prabhath867@gmail.com">Contact</a>
+    </nav>
+    <p class="footer-copy">© 2026 FinSight · Built with FastAPI, pgvector, Gemini 2.5 Flash</p>
+  </footer>
+
+  <!-- ── Screen-reader only utility ── -->
+  <style>.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}</style>
+
+  <script>
+    // Scroll reveal
+    const observer = new IntersectionObserver(
+      entries => entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } }),
+      { threshold: 0.12 }
+    );
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    // Subscribe handler (hooks into existing API)
+    function handleSubscribe(e) {
+      e.preventDefault();
+      const input = document.getElementById('email-input');
+      const btn = e.target.querySelector('button');
+      btn.textContent = 'Sending…';
+      btn.disabled = true;
+
+      fetch('https://finsight-api-7ghk.onrender.com/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: input.value })
+      })
+        .then(r => r.ok ? r.json() : Promise.reject(r))
+        .then(() => {
+          btn.textContent = 'Check your email ✓';
+          btn.style.background = 'var(--profit)';
+          input.value = '';
+        })
+        .catch(() => {
+          btn.textContent = 'Try again';
+          btn.disabled = false;
+          btn.style.background = 'var(--loss)';
+          setTimeout(() => { btn.textContent = 'Subscribe'; btn.style.background = ''; btn.disabled = false; }, 3000);
+        });
+    }
+  </script>
+</body>
+</html>
