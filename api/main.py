@@ -8,6 +8,7 @@ model and a throwaway database.
 import datetime as dt
 
 from fastapi import Depends, FastAPI, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
@@ -25,6 +26,13 @@ from rag.embed import GeminiEmbedder
 from rag.service import answer_question, reindex_all
 
 app = FastAPI(title="FinSight")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://prabhathv07.github.io"],
+    allow_methods=["POST"],
+    allow_headers=["Content-Type"],
+)
 
 
 def get_session():
