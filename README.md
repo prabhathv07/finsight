@@ -3,9 +3,7 @@
 <p align="center">
   <b>FastAPI · PostgreSQL + pgvector · Gemini 2.5 Flash · RAG Q&A · Resend · Render</b>
   <br/>
-  Live at <a href="https://finsight-api-7ghk.onrender.com">finsight-api-7ghk.onrender.com</a>
-  &nbsp;·&nbsp;
-  <a href="https://prabhathv07.github.io/finsight/">Landing page</a>
+  Live at <a href="https://prabhathv07.github.io/finsight/">prabhathv07.github.io/finsight</a>
   <br/><br/>
   <a href="https://github.com/prabhathv07/finsight/actions/workflows/ci.yml">
     <img src="https://github.com/prabhathv07/finsight/actions/workflows/ci.yml/badge.svg" alt="CI">
