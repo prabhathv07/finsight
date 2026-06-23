@@ -40,7 +40,7 @@ def request_subscription(session, email):
         session.add(sub)
         return sub, True
 
-    if existing.status == "unsubscribed":
+    if existing.status in ("unsubscribed", "pending"):
         existing.status = "pending"
         existing.confirm_token = _token()
         existing.unsubscribe_token = _token()

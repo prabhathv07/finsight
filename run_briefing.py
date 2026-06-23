@@ -13,14 +13,14 @@ from analysis.service import generate_and_store
 from analysis.store import briefing_for
 from core.config import get_settings
 from core.db import session_scope
-from core.models import create_all
 from core.pipeline import run as run_pipeline
 from delivery.send import deliver
+from infra.init_db import init as init_db
 
 
 def main(run_date=None):
     run_date = run_date or dt.date.today()
-    create_all()
+    init_db()  # enables pgvector extension before creating tables
 
     with session_scope() as session:
         pulled = run_pipeline(session, run_date=run_date)
