@@ -20,16 +20,21 @@ def _enable_pgvector(engine):
 
 
 def _create_vector_index(engine):
+    # IVFFlat caps at 2000 dims; use HNSW which handles higher dimensions.
+    # Wrapped in try/except so a version mismatch never crashes the briefing run.
     if engine.dialect.name != "postgresql":
         return
-    with engine.begin() as conn:
-        conn.execute(
-            text(
-                "CREATE INDEX IF NOT EXISTS ix_briefing_chunks_embedding "
-                "ON briefing_chunks USING ivfflat (embedding vector_cosine_ops) "
-                "WITH (lists = 100)"
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_briefing_chunks_embedding "
+                    "ON briefing_chunks USING hnsw (embedding vector_cosine_ops) "
+                    "WITH (m = 16, ef_construction = 64)"
+                )
             )
-        )
+    except Exception as exc:
+        print(f"warning: could not create vector index (search will use exact scan): {exc}")
 
 
 def init():
