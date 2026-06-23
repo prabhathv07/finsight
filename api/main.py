@@ -147,6 +147,27 @@ def subscribe(email: str = Form(...), session=Depends(get_session),
     )
 
 
+@app.post("/resend-confirmation", response_class=HTMLResponse)
+def resend_confirmation(email: str = Form(...), session=Depends(get_session),
+                        backend=Depends(get_backend)):
+    settings = get_settings()
+    sub, should_send = subscribers.refresh_confirmation(session, email)
+    session.flush()
+
+    if should_send:
+        confirm_url = f"{settings.public_base_url.rstrip('/')}/confirm?token={sub.confirm_token}"
+        body = render_confirmation(confirm_url, settings.mailing_address)
+        try:
+            backend.send(confirmation_subject(), body, sub.email)
+        except Exception:
+            pass
+
+    return render_message(
+        "Check your inbox",
+        "If that address is pending confirmation, a fresh link is on its way.",
+    )
+
+
 @app.get("/confirm", response_class=HTMLResponse)
 def confirm(token: str, session=Depends(get_session)):
     sub = subscribers.confirm(session, token)

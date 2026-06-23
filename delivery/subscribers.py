@@ -40,7 +40,7 @@ def request_subscription(session, email):
         session.add(sub)
         return sub, True
 
-    if existing.status in ("unsubscribed", "pending"):
+    if existing.status == "unsubscribed":
         existing.status = "pending"
         existing.confirm_token = _token()
         existing.unsubscribe_token = _token()
@@ -49,6 +49,22 @@ def request_subscription(session, email):
         return existing, True
 
     return existing, False
+
+
+def refresh_confirmation(session, email):
+    """Refresh the confirm token for a pending subscriber.
+
+    Returns (subscriber, True) when the address is pending and a new
+    confirmation email should be sent. Returns (None, False) otherwise —
+    address unknown, already confirmed, or unsubscribed — so the endpoint
+    can give the same generic response either way without leaking status.
+    """
+    email = email.strip().lower()
+    existing = session.scalar(select(Subscriber).where(Subscriber.email == email))
+    if existing is None or existing.status != "pending":
+        return None, False
+    existing.confirm_token = _token()
+    return existing, True
 
 
 def confirm(session, token):
