@@ -6,6 +6,7 @@ model and a throwaway database.
 """
 
 import datetime as dt
+import logging
 
 from fastapi import Depends, FastAPI, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +27,7 @@ from rag.embed import GeminiEmbedder
 from rag.service import answer_question, reindex_all
 
 app = FastAPI(title="FinSight")
+logger = logging.getLogger("finsight.api")
 
 app.add_middleware(
     CORSMiddleware,
@@ -125,7 +127,16 @@ def home(session=Depends(get_session)):
 def subscribe(email: str = Form(...), session=Depends(get_session),
               backend=Depends(get_backend)):
     settings = get_settings()
-    sub, is_new = subscribers.request_subscription(session, email)
+    try:
+        sub, is_new = subscribers.request_subscription(session, email)
+    except ValueError:
+        # Bad-format address: tell the user so they can fix a typo. This is
+        # about the input string, not who is subscribed, so it leaks nothing.
+        return render_message(
+            "Check your email address",
+            "That does not look like a valid email address. "
+            "Please check it and try again.",
+        )
     session.flush()
 
     if is_new:
@@ -134,9 +145,10 @@ def subscribe(email: str = Form(...), session=Depends(get_session),
         try:
             backend.send(confirmation_subject(), body, sub.email)
         except Exception:
-            # Do not fail the request on a mail hiccup; the address is saved
-            # and a later confirm resend can recover it.
-            pass
+            # The address is saved, so a later resend can still recover it --
+            # but log the reason instead of swallowing it, or a misconfigured
+            # mailer looks identical to success and no confirmation ever lands.
+            logger.exception("confirmation email failed for %s", sub.email)
 
     # Same response whether or not the address was already on file, so the
     # page does not reveal who is subscribed.

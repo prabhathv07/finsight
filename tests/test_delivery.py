@@ -1,6 +1,5 @@
 import datetime as dt
 
-import pytest
 
 from delivery.render import render_html, subject_for
 from delivery.send import Recipient, send_briefing
@@ -53,3 +52,77 @@ def test_send_records_failures_without_stopping():
     result = send_briefing(FakeBriefing(), [Recipient("a@test.com")], BrokenBackend())
     assert result["sent"] == []
     assert result["failed"] == ["a@test.com"]
+
+
+class _Settings:
+    def __init__(self, email_to, base_url="https://x.test"):
+        self.email_to = email_to
+        self.public_base_url = base_url
+        self.mailing_address = "123 Main St"
+
+
+class _OkBriefing:
+    run_date = dt.date(2026, 1, 6)
+    llm_output = "Futures firm."
+    status = "ok"
+
+
+class _FailedBriefing:
+    run_date = dt.date(2026, 1, 6)
+    llm_output = "Automated commentary was unavailable."
+    status = "failed"
+
+
+def _sub(email, token="t"):
+    class S:
+        pass
+    s = S()
+    s.email = email
+    s.unsubscribe_token = token
+    return s
+
+
+def test_clean_recipients_drops_invalid_and_dedupes():
+    from delivery.send import Recipient, clean_recipients
+
+    recips = [
+        Recipient("good@gmail.com"),
+        Recipient("test500@example.com"),   # reserved -> dropped
+        Recipient("Good@Gmail.com"),        # duplicate (case) -> dropped
+        Recipient("also@reader.io"),
+    ]
+    cleaned = clean_recipients(recips)
+    emails = [r.email for r in cleaned]
+    assert "test500@example.com" not in [e.lower() for e in emails]
+    assert len(cleaned) == 2
+
+
+def test_deliver_skips_bad_confirmed_subscriber(monkeypatch):
+    from delivery import send as send_mod
+    from delivery import subscribers as subs_mod
+
+    monkeypatch.setattr(
+        subs_mod, "confirmed",
+        lambda session: [_sub("test500@example.com"), _sub("real@gmail.com")],
+    )
+    backend = CapturingBackend()
+    result = send_mod.deliver(None, _OkBriefing(), _Settings(email_to=[]), backend=backend)
+    assert result["sent"] == ["real@gmail.com"]
+    assert all("example.com" not in m[1] for m in backend.messages)
+
+
+def test_deliver_failed_briefing_goes_to_admin_only(monkeypatch):
+    from delivery import send as send_mod
+    from delivery import subscribers as subs_mod
+
+    monkeypatch.setattr(
+        subs_mod, "confirmed",
+        lambda session: [_sub("real@gmail.com")],
+    )
+    backend = CapturingBackend()
+    result = send_mod.deliver(
+        None, _FailedBriefing(), _Settings(email_to=["admin@gmail.com"]), backend=backend
+    )
+    # Subscriber must NOT receive a broken briefing; only the admin is alerted.
+    assert result["sent"] == ["admin@gmail.com"]
+    assert "real@gmail.com" not in result["sent"]

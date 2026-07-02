@@ -12,6 +12,7 @@ import secrets
 from sqlalchemy import select
 
 from core.models import Subscriber
+from delivery.validation import is_valid_email, normalize_email
 
 
 def _token():
@@ -26,7 +27,9 @@ def request_subscription(session, email):
     confirmed is left as-is and is_new is False, so repeat submits do not
     spam a confirmation link.
     """
-    email = email.strip().lower()
+    email = normalize_email(email)
+    if not is_valid_email(email):
+        raise ValueError("invalid email address")
     existing = session.scalar(select(Subscriber).where(Subscriber.email == email))
 
     if existing is None:
@@ -59,7 +62,7 @@ def refresh_confirmation(session, email):
     address unknown, already confirmed, or unsubscribed — so the endpoint
     can give the same generic response either way without leaking status.
     """
-    email = email.strip().lower()
+    email = normalize_email(email)
     existing = session.scalar(select(Subscriber).where(Subscriber.email == email))
     if existing is None or existing.status != "pending":
         return None, False

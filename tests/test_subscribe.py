@@ -21,11 +21,11 @@ class CaptureBackend:
 # Store-level tests use the session fixture from conftest.
 
 def test_request_subscription_creates_pending(session):
-    sub, is_new = subscribers.request_subscription(session, "Reader@Example.com")
+    sub, is_new = subscribers.request_subscription(session, "Reader@Gmail.com")
     session.commit()
     assert is_new is True
     assert sub.status == "pending"
-    assert sub.email == "reader@example.com"
+    assert sub.email == "reader@gmail.com"
     assert sub.confirm_token and sub.unsubscribe_token
 
 
@@ -127,3 +127,22 @@ def test_bad_confirm_token_is_handled(client):
     resp = client.get("/confirm?token=nope")
     assert resp.status_code == 200
     assert "not recognized" in resp.text.lower()
+
+
+def test_invalid_email_is_rejected_at_store(session):
+    import pytest as _pytest
+
+    with _pytest.raises(ValueError):
+        subscribers.request_subscription(session, "test500@example.com")
+
+
+def test_subscribe_rejects_invalid_email(client):
+    resp = client.post("/subscribe", data={"email": "test500@example.com"})
+    assert resp.status_code == 200
+    assert "valid email" in resp.text.lower()
+    # Nothing was sent and nothing was stored.
+    assert client.backend.sent == []
+    session = db.get_session_factory()()
+    count = session.query(Subscriber).count()
+    session.close()
+    assert count == 0
