@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from api.main import app, get_backend, get_commentator
+from api.main import app, get_backend, get_commentator, limit_signups
 from core import db
 from core.models import Base, Subscriber
 from delivery import subscribers
@@ -76,6 +76,7 @@ def client(tmp_path):
     backend = CaptureBackend()
     app.dependency_overrides[get_backend] = lambda: backend
     app.dependency_overrides[get_commentator] = lambda: None
+    app.dependency_overrides[limit_signups] = lambda: None
     client = TestClient(app)
     client.backend = backend
     yield client
@@ -146,3 +147,41 @@ def test_subscribe_rejects_invalid_email(client):
     count = session.query(Subscriber).count()
     session.close()
     assert count == 0
+
+
+def test_concurrent_duplicate_subscribe_returns_generic_page(client, monkeypatch):
+    """A unique-constraint race must not surface as a 500 to the user."""
+    from sqlalchemy.exc import IntegrityError
+
+    def raise_integrity(session, email):
+        raise IntegrityError("insert", {}, Exception("duplicate"))
+
+    monkeypatch.setattr("api.main.subscribers.request_subscription", raise_integrity)
+    resp = client.post("/subscribe", data={"email": "race@gmail.com"})
+    assert resp.status_code == 200
+    assert "Check your inbox" in resp.text
+
+
+def test_signup_rate_limit():
+    from api.main import RateLimiter
+
+    limiter = RateLimiter(limit=3, window_seconds=60)
+    assert all(limiter.allow("1.2.3.4") for _ in range(3))
+    assert limiter.allow("1.2.3.4") is False
+    assert limiter.allow("5.6.7.8") is True  # other callers unaffected
+
+
+def test_rate_limited_subscribe_returns_429(tmp_path, monkeypatch):
+    url = f"sqlite:///{tmp_path/'rl.db'}"
+    engine = db.reset_engine_for_tests(url)
+    Base.metadata.create_all(engine)
+
+    import api.main as api_main
+    monkeypatch.setattr(api_main, "_signup_limiter", api_main.RateLimiter(1, 60))
+    app.dependency_overrides[get_backend] = lambda: CaptureBackend()
+    try:
+        client = TestClient(app)
+        assert client.post("/subscribe", data={"email": "rl1@gmail.com"}).status_code == 200
+        assert client.post("/subscribe", data={"email": "rl2@gmail.com"}).status_code == 429
+    finally:
+        app.dependency_overrides.clear()

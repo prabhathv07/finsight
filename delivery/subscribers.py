@@ -9,7 +9,7 @@ tokens rather than silently re-enrolling it.
 import datetime as dt
 import secrets
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from core.models import Subscriber
 from delivery.validation import is_valid_email, normalize_email
@@ -99,4 +99,8 @@ def confirmed(session):
 
 
 def confirmed_count(session):
-    return len(confirmed(session))
+    return session.scalar(
+        select(func.count())
+        .select_from(Subscriber)
+        .where(Subscriber.status == "confirmed")
+    )

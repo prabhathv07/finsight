@@ -8,12 +8,15 @@ model and a throwaway database.
 import datetime as dt
 import logging
 import secrets as pysecrets
+import time
+from collections import defaultdict, deque
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Security
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import IntegrityError
 
 from analysis.llm import GeminiCommentator
 from analysis.service import generate_and_store
@@ -50,6 +53,42 @@ def require_api_token(token: str = Security(_api_key_header)):
         )
     if not (token and pysecrets.compare_digest(token, expected)):
         raise HTTPException(status_code=401, detail="invalid or missing X-API-Token")
+
+
+class RateLimiter:
+    """Small per-key sliding-window limiter.
+
+    In-memory is enough: the service runs as a single instance, and the goal
+    is to stop someone scripting confirmation-email sends at strangers, not
+    to survive a distributed flood.
+    """
+
+    def __init__(self, limit, window_seconds):
+        self.limit = limit
+        self.window = window_seconds
+        self._hits = defaultdict(deque)
+
+    def allow(self, key):
+        now = time.monotonic()
+        hits = self._hits[key]
+        while hits and now - hits[0] > self.window:
+            hits.popleft()
+        if len(hits) >= self.limit:
+            return False
+        hits.append(now)
+        return True
+
+
+_signup_limiter = RateLimiter(limit=5, window_seconds=60)
+
+
+def limit_signups(request: Request):
+    # Render terminates TLS at a proxy; the caller is the first hop in
+    # X-Forwarded-For, falling back to the socket peer for local runs.
+    forwarded = request.headers.get("x-forwarded-for", "")
+    ip = forwarded.split(",")[0].strip() or (request.client.host if request.client else "unknown")
+    if not _signup_limiter.allow(ip):
+        raise HTTPException(status_code=429, detail="too many requests; try again in a minute")
 
 app.add_middleware(
     CORSMiddleware,
@@ -166,12 +205,14 @@ def home(session=Depends(get_session)):
     return render_page(briefing, count, settings.mailing_address)
 
 
-@app.post("/subscribe", response_class=HTMLResponse)
+@app.post("/subscribe", response_class=HTMLResponse,
+          dependencies=[Depends(limit_signups)])
 def subscribe(email: str = Form(...), session=Depends(get_session),
               backend=Depends(get_backend)):
     settings = get_settings()
     try:
         sub, is_new = subscribers.request_subscription(session, email)
+        session.flush()
     except ValueError:
         # Bad-format address: tell the user so they can fix a typo. This is
         # about the input string, not who is subscribed, so it leaks nothing.
@@ -180,7 +221,16 @@ def subscribe(email: str = Form(...), session=Depends(get_session),
             "That does not look like a valid email address. "
             "Please check it and try again.",
         )
-    session.flush()
+    except IntegrityError:
+        # Two concurrent submits for the same new address: the other request
+        # won the unique-constraint race and is sending the confirmation, so
+        # this one can return the same generic page.
+        session.rollback()
+        return render_message(
+            "Check your inbox",
+            "If that address is new, a confirmation link is on its way. "
+            "Click it to start receiving the briefing.",
+        )
 
     if is_new:
         confirm_url = f"{settings.public_base_url.rstrip('/')}/confirm?token={sub.confirm_token}"
@@ -202,7 +252,8 @@ def subscribe(email: str = Form(...), session=Depends(get_session),
     )
 
 
-@app.post("/resend-confirmation", response_class=HTMLResponse)
+@app.post("/resend-confirmation", response_class=HTMLResponse,
+          dependencies=[Depends(limit_signups)])
 def resend_confirmation(email: str = Form(...), session=Depends(get_session),
                         backend=Depends(get_backend)):
     settings = get_settings()
