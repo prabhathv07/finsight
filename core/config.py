@@ -50,6 +50,7 @@ class Settings:
         self.smtp_host = _env("SMTP_HOST", "smtp.gmail.com")
         self.smtp_port = int(_env("SMTP_PORT", "465"))
         self.resend_api_key = _env("RESEND_API_KEY")
+        self.brevo_api_key = _env("BREVO_API_KEY")
 
         # Shown in the email footer to meet bulk-email requirements.
         self.mailing_address = _env("MAILING_ADDRESS")

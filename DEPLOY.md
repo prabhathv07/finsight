@@ -93,11 +93,22 @@ Save that value. You will paste it into Render in step 5.
 Two backends exist; pick one for BOTH the API and the cron so the product
 has one deliverability profile.
 
-**Free path (no domain needed): Gmail SMTP.** Turn on 2-Step Verification,
-then create an app password at https://myaccount.google.com/apppasswords.
-Set `EMAIL_BACKEND=smtp`, `EMAIL_USER=<your gmail>`, `EMAIL_PASSWORD=<the
-16-char app password>`, `EMAIL_FROM=<your gmail>`. Good for a small list
-(Gmail caps around 500 recipients/day).
+**Free path (no domain needed): Brevo HTTP API.** Render's free tier
+blocks outbound SMTP ports (25/465/587), so Gmail SMTP cannot work from
+the web service -- sends fail with "[Errno 101] Network is unreachable".
+Brevo sends over HTTPS instead and its free tier (300 emails/day) verifies
+a single sender address without a domain:
+
+1. Create an account at https://www.brevo.com (free).
+2. Verify your own address as a sender: Settings -> Senders & Domains ->
+   Senders -> Add a sender -> your gmail -> click the confirmation email.
+3. Create an API key: Settings -> SMTP & API -> API Keys -> Generate.
+4. Set `EMAIL_BACKEND=brevo`, `BREVO_API_KEY=<the key>`,
+   `EMAIL_FROM=<the verified address>` in both Render and GitHub secrets.
+
+Gmail SMTP (`EMAIL_BACKEND=smtp` with an app password) still works where
+SMTP is not blocked -- local runs and GitHub Actions -- but use one
+backend everywhere so delivery behaves the same on every path.
 
 **Upgrade path: Resend + your own domain.** Resend's free tier (3,000
 emails/month) delivers to strangers only from a sender on a domain you have
@@ -120,10 +131,9 @@ The repo has a Render blueprint at `infra/render.yaml`.
        DATABASE_URL      = <your-neon-url from step 3>
        GEMINI_API_KEY    = <your-gemini-key>
        GEMINI_MODEL      = gemini-2.5-flash
-       EMAIL_BACKEND     = smtp   (or resend, see step 4)
-       EMAIL_USER        = <your gmail, for smtp>
-       EMAIL_PASSWORD    = <gmail app password, for smtp>
-       EMAIL_FROM        = <your gmail, or verified-domain sender for resend>
+       EMAIL_BACKEND     = brevo   (see step 4; smtp cannot work on free Render)
+       BREVO_API_KEY     = <your Brevo API key>
+       EMAIL_FROM        = <your Brevo-verified sender address>
        MAILING_ADDRESS   = <a real postal address>
        PUBLIC_BASE_URL   = <leave blank for now, fill in step 6>
        FINSIGHT_API_TOKEN = <a long random string; guards /briefings/run, /rag/reindex, /ask>
@@ -171,10 +181,8 @@ hits Neon directly and is unaffected by the web service sleeping.
 1. In the GitHub repo, go to Settings, then Secrets and variables, then
    Actions. Add these repository secrets, same values as Render:
 
-       DATABASE_URL, GEMINI_API_KEY, EMAIL_BACKEND, EMAIL_USER,
-       EMAIL_PASSWORD, EMAIL_FROM, MAILING_ADDRESS, PUBLIC_BASE_URL
-       (add RESEND_API_KEY instead of EMAIL_USER/EMAIL_PASSWORD if you
-       chose the Resend path)
+       DATABASE_URL, GEMINI_API_KEY, EMAIL_BACKEND, BREVO_API_KEY,
+       EMAIL_FROM, MAILING_ADDRESS, PUBLIC_BASE_URL
 
    A secret left unset reaches the job as an empty string; the config treats
    empty as unset, and the run fails fast with a clear message if the Gemini

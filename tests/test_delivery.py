@@ -153,3 +153,68 @@ def test_smtp_without_credentials_fails_loudly(monkeypatch):
         monkeypatch.delenv(var, raising=False)
     with _pytest.raises(RuntimeError, match="EMAIL_USER"):
         backend_from_settings(Settings())
+
+
+def test_brevo_backend_sends_json_over_https(monkeypatch):
+    from delivery.backends import BrevoBackend
+
+    captured = {}
+
+    class FakeResp:
+        def read(self): return b"{}"
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+    def fake_urlopen(req, timeout=None):
+        import json
+        captured["url"] = req.full_url
+        captured["api_key"] = req.headers.get("Api-key")
+        captured["body"] = json.loads(req.data.decode())
+        return FakeResp()
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    BrevoBackend("brevo-key", "me@gmail.com").send("Subj", "<p>hi</p>", "you@x.com")
+    assert captured["url"] == "https://api.brevo.com/v3/smtp/email"
+    assert captured["api_key"] == "brevo-key"
+    assert captured["body"]["to"] == [{"email": "you@x.com"}]
+    assert captured["body"]["sender"]["email"] == "me@gmail.com"
+
+
+def test_brevo_error_is_readable(monkeypatch):
+    import io
+    import urllib.error
+
+    import pytest as _pytest
+
+    from delivery.backends import BrevoBackend
+
+    def fake_urlopen(req, timeout=None):
+        raise urllib.error.HTTPError(
+            req.full_url, 401, "Unauthorized", {}, io.BytesIO(b'{"message":"Key not found"}')
+        )
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    with _pytest.raises(RuntimeError, match="brevo rejected the send \\(401\\).*Key not found"):
+        BrevoBackend("bad", "me@gmail.com").send("S", "<p></p>", "you@x.com")
+
+
+def test_brevo_without_key_fails_loudly(monkeypatch):
+    import pytest as _pytest
+
+    from core.config import Settings
+    from delivery.backends import backend_from_settings
+
+    monkeypatch.setenv("EMAIL_BACKEND", "brevo")
+    monkeypatch.delenv("BREVO_API_KEY", raising=False)
+    with _pytest.raises(RuntimeError, match="BREVO_API_KEY"):
+        backend_from_settings(Settings())
+
+
+def test_brevo_factory_selected(monkeypatch):
+    from core.config import Settings
+    from delivery.backends import backend_from_settings
+
+    monkeypatch.setenv("EMAIL_BACKEND", "brevo")
+    monkeypatch.setenv("BREVO_API_KEY", "k")
+    monkeypatch.setenv("EMAIL_FROM", "me@gmail.com")
+    assert backend_from_settings(Settings()).name == "brevo"
