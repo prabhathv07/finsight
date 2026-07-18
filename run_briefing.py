@@ -1,8 +1,7 @@
 """Run the whole briefing once: ingest, compute, analyze, deliver.
 
-No orchestration server needed, so this is what the GitHub Actions fallback
-schedule calls and what you run by hand. The Prefect flow in infra/flow.py is
-the scheduled-with-retries path; this is the plain one.
+No orchestration server needed: this is what the GitHub Actions schedule
+calls and what you run by hand.
 
     python run_briefing.py
 """
@@ -10,6 +9,7 @@ the scheduled-with-retries path; this is the plain one.
 import datetime as dt
 import logging
 import sys
+from zoneinfo import ZoneInfo
 
 from analysis.service import generate_and_store
 from analysis.store import briefing_for
@@ -23,9 +23,11 @@ from rag.embed import GeminiEmbedder
 
 def main(run_date=None):
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    run_date = run_date or dt.date.today()
-
     settings = get_settings()
+    # "Today" is a market-timezone question. The GitHub runner is UTC, which
+    # matches until a run drifts near midnight; anchor to the configured zone.
+    run_date = run_date or dt.datetime.now(ZoneInfo(settings.timezone)).date()
+
     settings.require_gemini_key()  # a bad key should fail loudly, not per-call
 
     init_db()  # enables pgvector extension before creating tables

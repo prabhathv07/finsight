@@ -15,11 +15,11 @@ from rag.store import index_briefing, retrieve
 
 
 # Minimum cosine similarity for a chunk to be passed to the answerer.
-# text-embedding-004 cosine scores cluster near 0.7–0.9 for genuinely
-# relevant finance text and drop to 0.3–0.5 for unrelated content.
-# This value was chosen by inspecting the score distribution on a sample
-# of real briefing questions; raise it if hallucinations increase, lower
-# it if too many valid questions get the no-context reply.
+# Chosen by inspecting score distributions on sample briefing questions
+# against an earlier embedding model; production now embeds with
+# gemini-embedding-001, so re-check with eval_rag.py once real briefings
+# are indexed. Raise it if hallucinations increase, lower it if too many
+# valid questions get the no-context reply.
 MIN_RETRIEVAL_SCORE = 0.55
 
 
