@@ -11,7 +11,7 @@ import hashlib
 import pytest
 from fastapi.testclient import TestClient
 
-from api.main import app, get_answerer, get_commentator, get_embedder
+from api.main import app, get_answerer, get_commentator, get_embedder, require_api_token
 from core import db
 from core.models import Base, BriefingChunk
 from rag.chunk import chunk_briefing
@@ -175,6 +175,7 @@ def client(tmp_path):
     app.dependency_overrides[get_commentator] = lambda: FakeCommentator()
     app.dependency_overrides[get_embedder] = lambda: FakeEmbedder()
     app.dependency_overrides[get_answerer] = lambda: FakeAnswerer()
+    app.dependency_overrides[require_api_token] = lambda: None
     yield TestClient(app)
     app.dependency_overrides.clear()
 

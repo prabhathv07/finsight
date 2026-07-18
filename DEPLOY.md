@@ -112,9 +112,20 @@ The repo has a Render blueprint at `infra/render.yaml`.
        GEMINI_MODEL      = gemini-2.5-flash
        EMAIL_BACKEND     = resend
        RESEND_API_KEY    = <your-resend-key>
-       EMAIL_FROM        = onboarding@resend.dev
+       EMAIL_FROM        = <sender on a domain verified in Resend>
        MAILING_ADDRESS   = <a real postal address>
        PUBLIC_BASE_URL   = <leave blank for now, fill in step 6>
+       FINSIGHT_API_TOKEN = <a long random string; guards /briefings/run, /rag/reindex, /ask>
+
+   The Gemini key must be a standard `AIza...` key from
+   https://aistudio.google.com/apikey. `AQ.`-prefixed keys are rejected by the
+   Gemini API with 401 UNAUTHENTICATED, and the app refuses to start with one.
+
+   `EMAIL_FROM` cannot be Resend's sandbox `onboarding@resend.dev` for a real
+   list: the sandbox sender only delivers to the Resend account owner's own
+   address, so subscribers would never receive their confirmation email.
+   Verify a domain in Resend (Domains, then Add Domain, then add the DNS
+   records) and use a sender on it, e.g. `briefing@yourdomain.com`.
 
 3. Deploy. The container runs `python -m infra.init_db` on start, which creates
    all tables in Neon, then starts the API. Watch the deploy log for
@@ -149,6 +160,10 @@ hits Neon directly and is unaffected by the web service sleeping.
 
        DATABASE_URL, GEMINI_API_KEY, EMAIL_BACKEND, RESEND_API_KEY,
        EMAIL_FROM, MAILING_ADDRESS, PUBLIC_BASE_URL
+
+   A secret left unset reaches the job as an empty string; the config treats
+   empty as unset, and the run fails fast with a clear message if the Gemini
+   key is blank or malformed rather than silently sending fallback emails.
 
    You can also add `EMAIL_TO` with your own address so you get a copy even
    before you have subscribers.

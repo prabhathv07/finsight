@@ -7,11 +7,13 @@ model and a throwaway database.
 
 import datetime as dt
 import logging
+import secrets as pysecrets
 
-from fastapi import Depends, FastAPI, Form, HTTPException
+from fastapi import Depends, FastAPI, Form, HTTPException, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
+from fastapi.security.api_key import APIKeyHeader
+from pydantic import BaseModel, Field
 
 from analysis.llm import GeminiCommentator
 from analysis.service import generate_and_store
@@ -26,8 +28,28 @@ from rag.answer import GeminiAnswerer
 from rag.embed import GeminiEmbedder
 from rag.service import answer_question, reindex_all
 
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
 app = FastAPI(title="FinSight")
 logger = logging.getLogger("finsight.api")
+
+_api_key_header = APIKeyHeader(name="X-API-Token", auto_error=False)
+
+
+def require_api_token(token: str = Security(_api_key_header)):
+    """Gate the endpoints that spend Gemini quota behind a shared secret.
+
+    With no FINSIGHT_API_TOKEN configured the endpoints refuse everything:
+    forgetting the secret must not silently leave them open.
+    """
+    expected = get_settings().api_token
+    if not expected:
+        raise HTTPException(
+            status_code=503,
+            detail="endpoint disabled: FINSIGHT_API_TOKEN is not configured",
+        )
+    if not (token and pysecrets.compare_digest(token, expected)):
+        raise HTTPException(status_code=401, detail="invalid or missing X-API-Token")
 
 app.add_middleware(
     CORSMiddleware,
@@ -64,8 +86,29 @@ def get_answerer():
     return GeminiAnswerer(settings.gemini_api_key, settings.gemini_model)
 
 
+class _BrokenBackend:
+    """Placeholder when the mailer is misconfigured.
+
+    Subscribing must still save the row (a later /resend-confirmation can
+    recover it), so the config error surfaces on send, where the endpoints
+    already log failures, instead of turning the whole request into a 500.
+    """
+
+    name = "broken"
+
+    def __init__(self, exc):
+        self._exc = exc
+
+    def send(self, subject, body_html, recipient):
+        raise RuntimeError(f"mail backend misconfigured: {self._exc}")
+
+
 def get_backend():
-    return backend_from_settings(get_settings())
+    try:
+        return backend_from_settings(get_settings())
+    except RuntimeError as exc:
+        logger.error("mail backend misconfigured: %s", exc)
+        return _BrokenBackend(exc)
 
 
 def _serialize(briefing):
@@ -86,7 +129,7 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/briefings/run")
+@app.post("/briefings/run", dependencies=[Depends(require_api_token)])
 def run_briefing(run_date: str | None = None, session=Depends(get_session),
                  commentator=Depends(get_commentator),
                  embedder=Depends(get_embedder)):
@@ -172,7 +215,7 @@ def resend_confirmation(email: str = Form(...), session=Depends(get_session),
         try:
             backend.send(confirmation_subject(), body, sub.email)
         except Exception:
-            pass
+            logger.exception("confirmation resend failed for %s", sub.email)
 
     return render_message(
         "Check your inbox",
@@ -197,11 +240,11 @@ def unsubscribe(token: str, session=Depends(get_session)):
 
 
 class AskRequest(BaseModel):
-    question: str
-    top_k: int | None = None
+    question: str = Field(max_length=2000)
+    top_k: int | None = Field(default=None, ge=1, le=20)
 
 
-@app.post("/ask")
+@app.post("/ask", dependencies=[Depends(require_api_token)])
 def ask(req: AskRequest, session=Depends(get_session),
         embedder=Depends(get_embedder), answerer=Depends(get_answerer)):
     """Answer a question from the indexed briefing corpus, with citations."""
@@ -215,7 +258,7 @@ def ask(req: AskRequest, session=Depends(get_session),
         raise HTTPException(status_code=502, detail=f"embedding or answering service error: {exc}") from exc
 
 
-@app.post("/rag/reindex")
+@app.post("/rag/reindex", dependencies=[Depends(require_api_token)])
 def rag_reindex(session=Depends(get_session), embedder=Depends(get_embedder)):
     """Rebuild the chunk corpus from every stored briefing."""
     try:

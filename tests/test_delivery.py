@@ -126,3 +126,30 @@ def test_deliver_failed_briefing_goes_to_admin_only(monkeypatch):
     # Subscriber must NOT receive a broken briefing; only the admin is alerted.
     assert result["sent"] == ["admin@gmail.com"]
     assert "real@gmail.com" not in result["sent"]
+
+
+# ---- Backend factory misconfiguration -------------------------------------
+
+def test_resend_without_key_fails_loudly(monkeypatch):
+    import pytest as _pytest
+
+    from core.config import Settings
+    from delivery.backends import backend_from_settings
+
+    monkeypatch.setenv("EMAIL_BACKEND", "resend")
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
+    with _pytest.raises(RuntimeError, match="RESEND_API_KEY"):
+        backend_from_settings(Settings())
+
+
+def test_smtp_without_credentials_fails_loudly(monkeypatch):
+    import pytest as _pytest
+
+    from core.config import Settings
+    from delivery.backends import backend_from_settings
+
+    monkeypatch.setenv("EMAIL_BACKEND", "smtp")
+    for var in ("EMAIL_USER", "EMAIL_PASSWORD"):
+        monkeypatch.delenv(var, raising=False)
+    with _pytest.raises(RuntimeError, match="EMAIL_USER"):
+        backend_from_settings(Settings())

@@ -3,7 +3,7 @@ import datetime as dt
 import pytest
 from fastapi.testclient import TestClient
 
-from api.main import app, get_commentator
+from api.main import app, get_commentator, require_api_token
 from core import db
 from core.models import Base
 from core.pipeline import run
@@ -32,6 +32,7 @@ def client(tmp_path):
     session.close()
 
     app.dependency_overrides[get_commentator] = lambda: FakeCommentator()
+    app.dependency_overrides[require_api_token] = lambda: None
     yield TestClient(app)
     app.dependency_overrides.clear()
 
@@ -65,3 +66,58 @@ def test_get_specific_day(client):
 def test_missing_day_is_404(client):
     resp = client.get("/briefings/2020-01-01")
     assert resp.status_code == 404
+
+
+# ---- Auth on quota-spending endpoints -------------------------------------
+
+@pytest.fixture
+def auth_client(tmp_path, monkeypatch):
+    """Client with the real token check active and a known token configured."""
+    from core import config
+
+    url = f"sqlite:///{tmp_path/'auth.db'}"
+    engine = db.reset_engine_for_tests(url)
+    Base.metadata.create_all(engine)
+
+    monkeypatch.setenv("FINSIGHT_API_TOKEN", "test-token")
+    config.get_settings.cache_clear()
+
+    app.dependency_overrides[get_commentator] = lambda: FakeCommentator()
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+    config.get_settings.cache_clear()
+
+
+def test_privileged_endpoints_require_token(auth_client):
+    assert auth_client.post("/briefings/run").status_code == 401
+    assert auth_client.post("/rag/reindex").status_code == 401
+    assert auth_client.post("/ask", json={"question": "hi"}).status_code == 401
+
+
+def test_wrong_token_rejected(auth_client):
+    resp = auth_client.post("/briefings/run", headers={"X-API-Token": "nope"})
+    assert resp.status_code == 401
+
+
+def test_correct_token_accepted(auth_client):
+    resp = auth_client.post(
+        f"/briefings/run?run_date={RUN_DATE.isoformat()}",
+        headers={"X-API-Token": "test-token"},
+    )
+    assert resp.status_code == 200
+
+
+def test_unconfigured_token_disables_endpoints(tmp_path, monkeypatch):
+    from core import config
+
+    url = f"sqlite:///{tmp_path/'noauth.db'}"
+    engine = db.reset_engine_for_tests(url)
+    Base.metadata.create_all(engine)
+
+    monkeypatch.delenv("FINSIGHT_API_TOKEN", raising=False)
+    config.get_settings.cache_clear()
+    try:
+        client = TestClient(app)
+        assert client.post("/briefings/run").status_code == 503
+    finally:
+        config.get_settings.cache_clear()

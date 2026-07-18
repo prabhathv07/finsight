@@ -55,7 +55,15 @@ class ResendBackend:
 
 def backend_from_settings(settings):
     if settings.email_backend == "resend":
+        if not settings.resend_api_key:
+            raise RuntimeError("EMAIL_BACKEND is 'resend' but RESEND_API_KEY is empty")
+        if not settings.email_from:
+            raise RuntimeError("EMAIL_BACKEND is 'resend' but EMAIL_FROM is empty")
         return ResendBackend(settings.resend_api_key, settings.email_from)
+    if not (settings.email_user and settings.email_password):
+        raise RuntimeError(
+            "EMAIL_BACKEND is 'smtp' but EMAIL_USER/EMAIL_PASSWORD are empty"
+        )
     return SMTPBackend(
         settings.smtp_host,
         settings.smtp_port,

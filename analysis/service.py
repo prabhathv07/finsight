@@ -7,12 +7,15 @@ briefings table trustworthy as a monitoring source.
 """
 
 import datetime as dt
+import logging
 import time
 
 from analysis.llm import GeminiCommentator
 from analysis.store import save_briefing
 from analysis.summary import build_summary
 from core.config import get_settings
+
+logger = logging.getLogger("finsight.analysis")
 
 
 def _fallback(run_date):
@@ -56,6 +59,6 @@ def generate_and_store(session, run_date=None, commentator=None, embedder=None):
             session.flush()  # assign briefing.id before chunks reference it
             index_briefing(session, briefing, embedder)
         except Exception:
-            pass
+            logger.exception("indexing failed for %s", run_date)
 
     return briefing

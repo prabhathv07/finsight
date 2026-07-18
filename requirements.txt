@@ -6,7 +6,9 @@ python-dotenv>=1.0
 fastapi>=0.110
 uvicorn[standard]>=0.29
 python-multipart>=0.0.9
-google-genai>=0.3
+# Pinned: the daily job installs fresh, so an untested SDK release must not
+# land in production silently.
+google-genai==2.12.1
 resend>=2.0
 pgvector>=0.2.5
 numpy>=1.24

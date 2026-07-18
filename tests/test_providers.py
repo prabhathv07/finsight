@@ -8,7 +8,6 @@ logic.
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from ingestion.daily_pull import FallbackProvider
 from ingestion.providers.base import Quote
