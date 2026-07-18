@@ -16,7 +16,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel, Field
+from sqlalchemy import select as sa_select
 from sqlalchemy.exc import IntegrityError
+
+from core.models import Subscriber
 
 from analysis.llm import GeminiCommentator
 from analysis.service import generate_and_store
@@ -272,6 +275,49 @@ def resend_confirmation(email: str = Form(...), session=Depends(get_session),
         "Check your inbox",
         "If that address is pending confirmation, a fresh link is on its way.",
     )
+
+
+# ---- Admin (token-gated) --------------------------------------------------
+# The dashboards hide send outcomes and the subscriber table; these three
+# endpoints make the pipeline inspectable in production without a DB console.
+
+
+@app.get("/admin/subscribers", dependencies=[Depends(require_api_token)])
+def admin_list_subscribers(session=Depends(get_session)):
+    rows = session.scalars(sa_select(Subscriber).order_by(Subscriber.created_at)).all()
+    return [
+        {
+            "email": s.email,
+            "status": s.status,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+            "confirmed_at": s.confirmed_at.isoformat() if s.confirmed_at else None,
+        }
+        for s in rows
+    ]
+
+
+@app.delete("/admin/subscribers", dependencies=[Depends(require_api_token)])
+def admin_delete_subscriber(email: str, session=Depends(get_session)):
+    row = session.scalar(sa_select(Subscriber).where(Subscriber.email == email.strip().lower()))
+    if row is None:
+        raise HTTPException(status_code=404, detail="no subscriber with that email")
+    session.delete(row)
+    return {"deleted": row.email}
+
+
+@app.post("/admin/email-test", dependencies=[Depends(require_api_token)])
+def admin_email_test(email: str, backend=Depends(get_backend)):
+    """Send one test email and report the SMTP outcome instead of hiding it."""
+    try:
+        backend.send(
+            "FinSight email pipeline test",
+            "<p>If you can read this, the FinSight mailer works.</p>",
+            email,
+        )
+    except Exception as exc:
+        logger.exception("email test failed for %s", email)
+        raise HTTPException(status_code=502, detail=f"send failed: {exc}") from exc
+    return {"sent": True, "to": email, "backend": getattr(backend, "name", "unknown")}
 
 
 @app.get("/confirm", response_class=HTMLResponse)

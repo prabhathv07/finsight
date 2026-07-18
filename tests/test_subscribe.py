@@ -185,3 +185,72 @@ def test_rate_limited_subscribe_returns_429(tmp_path, monkeypatch):
         assert client.post("/subscribe", data={"email": "rl2@gmail.com"}).status_code == 429
     finally:
         app.dependency_overrides.clear()
+
+
+# ---- Admin endpoints ------------------------------------------------------
+
+def _admin_client(tmp_path, monkeypatch, name):
+    from core import config
+
+    url = f"sqlite:///{tmp_path/name}"
+    engine = db.reset_engine_for_tests(url)
+    Base.metadata.create_all(engine)
+    monkeypatch.setenv("FINSIGHT_API_TOKEN", "admin-token")
+    config.get_settings.cache_clear()
+    backend = CaptureBackend()
+    app.dependency_overrides[get_backend] = lambda: backend
+    app.dependency_overrides[limit_signups] = lambda: None
+    client = TestClient(app)
+    client.backend = backend
+    return client
+
+
+def teardown_function():
+    from core import config
+
+    app.dependency_overrides.clear()
+    config.get_settings.cache_clear()
+
+
+def test_admin_subscribers_requires_token(tmp_path, monkeypatch):
+    client = _admin_client(tmp_path, monkeypatch, "adm1.db")
+    assert client.get("/admin/subscribers").status_code == 401
+
+
+def test_admin_list_and_delete(tmp_path, monkeypatch):
+    client = _admin_client(tmp_path, monkeypatch, "adm2.db")
+    headers = {"X-API-Token": "admin-token"}
+    client.post("/subscribe", data={"email": "adm@gmail.com"})
+
+    listed = client.get("/admin/subscribers", headers=headers)
+    assert listed.status_code == 200
+    assert listed.json()[0]["email"] == "adm@gmail.com"
+    assert listed.json()[0]["status"] == "pending"
+
+    deleted = client.delete("/admin/subscribers?email=adm@gmail.com", headers=headers)
+    assert deleted.status_code == 200
+    assert client.get("/admin/subscribers", headers=headers).json() == []
+
+    missing = client.delete("/admin/subscribers?email=ghost@gmail.com", headers=headers)
+    assert missing.status_code == 404
+
+
+def test_admin_email_test_reports_outcome(tmp_path, monkeypatch):
+    client = _admin_client(tmp_path, monkeypatch, "adm3.db")
+    headers = {"X-API-Token": "admin-token"}
+
+    ok = client.post("/admin/email-test?email=probe@gmail.com", headers=headers)
+    assert ok.status_code == 200
+    assert ok.json()["sent"] is True
+    assert client.backend.sent[-1]["to"] == "probe@gmail.com"
+
+    class BoomBackend:
+        name = "boom"
+
+        def send(self, *a, **k):
+            raise RuntimeError("smtp exploded")
+
+    app.dependency_overrides[get_backend] = lambda: BoomBackend()
+    fail = client.post("/admin/email-test?email=probe@gmail.com", headers=headers)
+    assert fail.status_code == 502
+    assert "smtp exploded" in fail.json()["detail"]
