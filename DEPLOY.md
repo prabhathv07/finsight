@@ -91,11 +91,10 @@ Save that value. You will paste it into Render in step 5.
 ## Step 4. Set up Resend for email
 
 1. Sign in to Resend and create an API key. Copy it; this is `RESEND_API_KEY`.
-2. For a first deploy you can send from `onboarding@resend.dev`, which Resend
-   allows without verifying a domain. Set `EMAIL_FROM=onboarding@resend.dev`.
-3. When you want email from your own address later, add and verify a domain in
-   Resend, then set `EMAIL_FROM=briefing@yourdomain.com`. Domain verification
-   is a few DNS records and is not needed to go live.
+2. `onboarding@resend.dev` works only for testing: it delivers solely to
+   the Resend account owner's own address, so real subscribers never get
+   their confirmation email. Before opening signups, add and verify a domain
+   in Resend (a few DNS records) and set `EMAIL_FROM=briefing@yourdomain.com`.
 
 ## Step 5. Deploy the API and dashboard on Render
 
@@ -117,9 +116,11 @@ The repo has a Render blueprint at `infra/render.yaml`.
        PUBLIC_BASE_URL   = <leave blank for now, fill in step 6>
        FINSIGHT_API_TOKEN = <a long random string; guards /briefings/run, /rag/reindex, /ask>
 
-   The Gemini key must be a standard `AIza...` key from
-   https://aistudio.google.com/apikey. `AQ.`-prefixed keys are rejected by the
-   Gemini API with 401 UNAUTHENTICATED, and the app refuses to start with one.
+   The Gemini key must be a current `AQ.`-prefixed auth key from
+   https://aistudio.google.com/apikey. Legacy `AIza...` standard keys have
+   been rejected by the Gemini API (401 UNAUTHENTICATED,
+   ACCESS_TOKEN_TYPE_UNSUPPORTED) since 2026-06-19 and stop working entirely
+   in September 2026.
 
    `EMAIL_FROM` cannot be Resend's sandbox `onboarding@resend.dev` for a real
    list: the sandbox sender only delivers to the Resend account owner's own

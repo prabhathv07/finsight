@@ -35,12 +35,15 @@ def test_require_gemini_key_rejects_blank(monkeypatch):
         Settings().require_gemini_key()
 
 
-def test_require_gemini_key_rejects_aq_prefix(monkeypatch):
+def test_require_gemini_key_accepts_aq_auth_key(monkeypatch):
+    """AQ.-prefixed auth keys are the current Gemini key format."""
     monkeypatch.setenv("GEMINI_API_KEY", "AQ.somekey")
-    with pytest.raises(RuntimeError, match="AQ"):
-        Settings().require_gemini_key()
+    assert Settings().require_gemini_key() == "AQ.somekey"
 
 
-def test_require_gemini_key_accepts_normal_key(monkeypatch):
+def test_require_gemini_key_warns_on_legacy_aiza_key(monkeypatch, caplog):
+    """Legacy AIza standard keys are being rejected by the API; warn loudly."""
     monkeypatch.setenv("GEMINI_API_KEY", "AIzaExample123")
-    assert Settings().require_gemini_key() == "AIzaExample123"
+    with caplog.at_level("WARNING"):
+        assert Settings().require_gemini_key() == "AIzaExample123"
+    assert "legacy" in caplog.text

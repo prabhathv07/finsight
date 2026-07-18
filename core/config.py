@@ -76,21 +76,24 @@ class Settings:
     def require_gemini_key(self):
         """Fail fast, with an actionable message, when the key cannot work.
 
-        Google rejects "AQ."-prefixed AI Studio keys on the standard Gemini
-        endpoint with an opaque 401 ACCESS_TOKEN_TYPE_UNSUPPORTED, so catch
-        that shape here instead of failing on every model call.
+        Gemini API keys migrated from "AIza..." (standard keys) to "AQ..."
+        (auth keys) in mid-2026. The API started rejecting legacy standard
+        keys on 2026-06-19 with 401 ACCESS_TOKEN_TYPE_UNSUPPORTED and drops
+        them entirely in September 2026, so an AIza key is the failure mode
+        worth warning about; AQ. keys are the current format.
         """
         if not self.gemini_api_key:
             raise RuntimeError(
                 "GEMINI_API_KEY is not set (or is an empty string). "
                 "Set it in the environment before running."
             )
-        if self.gemini_api_key.startswith("AQ."):
-            raise RuntimeError(
-                "GEMINI_API_KEY is an 'AQ.'-prefixed key, which the Gemini "
-                "API rejects with 401 UNAUTHENTICATED. Create a standard "
-                "'AIza...' key at https://aistudio.google.com/apikey and "
-                "update the secret."
+        if self.gemini_api_key.startswith("AIza"):
+            import logging
+
+            logging.getLogger("finsight.config").warning(
+                "GEMINI_API_KEY is a legacy 'AIza' standard key; the Gemini "
+                "API has been rejecting these since 2026-06-19. Create a new "
+                "'AQ.' auth key at https://aistudio.google.com/apikey."
             )
         return self.gemini_api_key
 
