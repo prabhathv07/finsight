@@ -20,8 +20,10 @@ services:
       - key: GEMINI_MODEL
         value: gemini-2.5-flash
       - key: EMAIL_BACKEND
-        value: resend
-      - key: RESEND_API_KEY
+        value: smtp
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASSWORD
         sync: false
       - key: EMAIL_FROM
         sync: false

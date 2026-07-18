@@ -88,13 +88,24 @@ Once the local run is clean, move on.
 
 Save that value. You will paste it into Render in step 5.
 
-## Step 4. Set up Resend for email
+## Step 4. Set up email
 
-1. Sign in to Resend and create an API key. Copy it; this is `RESEND_API_KEY`.
-2. `onboarding@resend.dev` works only for testing: it delivers solely to
-   the Resend account owner's own address, so real subscribers never get
-   their confirmation email. Before opening signups, add and verify a domain
-   in Resend (a few DNS records) and set `EMAIL_FROM=briefing@yourdomain.com`.
+Two backends exist; pick one for BOTH the API and the cron so the product
+has one deliverability profile.
+
+**Free path (no domain needed): Gmail SMTP.** Turn on 2-Step Verification,
+then create an app password at https://myaccount.google.com/apppasswords.
+Set `EMAIL_BACKEND=smtp`, `EMAIL_USER=<your gmail>`, `EMAIL_PASSWORD=<the
+16-char app password>`, `EMAIL_FROM=<your gmail>`. Good for a small list
+(Gmail caps around 500 recipients/day).
+
+**Upgrade path: Resend + your own domain.** Resend's free tier (3,000
+emails/month) delivers to strangers only from a sender on a domain you have
+verified: `onboarding@resend.dev` delivers solely to the Resend account
+owner. Buy a domain (~$10/yr), add it at https://resend.com/domains, add
+the DNS records it shows, wait for Verified, then set
+`EMAIL_BACKEND=resend`, `RESEND_API_KEY=<key>`,
+`EMAIL_FROM=briefing@yourdomain.com`.
 
 ## Step 5. Deploy the API and dashboard on Render
 
@@ -109,9 +120,10 @@ The repo has a Render blueprint at `infra/render.yaml`.
        DATABASE_URL      = <your-neon-url from step 3>
        GEMINI_API_KEY    = <your-gemini-key>
        GEMINI_MODEL      = gemini-2.5-flash
-       EMAIL_BACKEND     = resend
-       RESEND_API_KEY    = <your-resend-key>
-       EMAIL_FROM        = <sender on a domain verified in Resend>
+       EMAIL_BACKEND     = smtp   (or resend, see step 4)
+       EMAIL_USER        = <your gmail, for smtp>
+       EMAIL_PASSWORD    = <gmail app password, for smtp>
+       EMAIL_FROM        = <your gmail, or verified-domain sender for resend>
        MAILING_ADDRESS   = <a real postal address>
        PUBLIC_BASE_URL   = <leave blank for now, fill in step 6>
        FINSIGHT_API_TOKEN = <a long random string; guards /briefings/run, /rag/reindex, /ask>
@@ -159,8 +171,10 @@ hits Neon directly and is unaffected by the web service sleeping.
 1. In the GitHub repo, go to Settings, then Secrets and variables, then
    Actions. Add these repository secrets, same values as Render:
 
-       DATABASE_URL, GEMINI_API_KEY, EMAIL_BACKEND, RESEND_API_KEY,
-       EMAIL_FROM, MAILING_ADDRESS, PUBLIC_BASE_URL
+       DATABASE_URL, GEMINI_API_KEY, EMAIL_BACKEND, EMAIL_USER,
+       EMAIL_PASSWORD, EMAIL_FROM, MAILING_ADDRESS, PUBLIC_BASE_URL
+       (add RESEND_API_KEY instead of EMAIL_USER/EMAIL_PASSWORD if you
+       chose the Resend path)
 
    A secret left unset reaches the job as an empty string; the config treats
    empty as unset, and the run fails fast with a clear message if the Gemini
@@ -225,8 +239,9 @@ one thing you confirm:
 - `/health` works but `/` errors: tables may not exist. Confirm the deploy log
   printed `tables ready`. If not, the container could not reach Neon at start.
 - Briefing email never arrives: check the `briefings` table status. If `ok`,
-  the analysis ran and the send is the problem; verify `RESEND_API_KEY` and
-  `EMAIL_FROM`. If `failed`, read the `error` column.
+  the analysis ran and the send is the problem; verify the email backend
+  credentials (`EMAIL_USER`/`EMAIL_PASSWORD` for smtp, `RESEND_API_KEY` and
+  a verified `EMAIL_FROM` domain for resend). If `failed`, read the `error` column.
 - Analysis status `failed` with a quota message: Gemini free tier rate limit.
   Wait and rerun, or check the key.
 - The daily workflow runs but sends nothing: confirm the GitHub Actions secrets
